@@ -1,4 +1,5 @@
 #include "ExeParser.h"
+#include "ElfParser.h"
 
 /*
 #ifdef _WIN32
@@ -9,6 +10,6 @@
 */
 
 int main() {
-    visualize("test/hello_world.exe");
+    exe_visualize("test/hello64.exe");
     return 0;
 }

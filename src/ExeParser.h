@@ -1,5 +1,5 @@
 #pragma once
-#include "stdint.h"
+#include "inttypes.h"
 
 typedef uint16_t WORD;
 typedef uint32_t DWORD;
@@ -15,6 +15,30 @@ typedef uint64_t ULONGLONG;
 #define IMAGE_OS2_SIGNATURE_LE              0x454C      // LE
 #define IMAGE_VXD_SIGNATURE                 0x454C      // LE
 #define IMAGE_NT_SIGNATURE                  0x00004550  // PE00
+
+#define IMAGE_FILE_MACHINE_I386              0x014c  // Intel 386.
+#define IMAGE_FILE_MACHINE_IA64              0x0200  // Intel 64
+#define IMAGE_FILE_MACHINE_AMD64             0x8664  // AMD64 (K8)
+
+#define IMAGE_FILE_RELOCS_STRIPPED           0x0001  // Relocation info stripped from file.
+#define IMAGE_FILE_EXECUTABLE_IMAGE          0x0002  // File is executable  (i.e. no unresolved externel references).
+#define IMAGE_FILE_LINE_NUMS_STRIPPED        0x0004  // Line nunbers stripped from file.
+#define IMAGE_FILE_LOCAL_SYMS_STRIPPED       0x0008  // Local symbols stripped from file.
+#define IMAGE_FILE_AGGRESIVE_WS_TRIM         0x0010  // Agressively trim working set
+#define IMAGE_FILE_LARGE_ADDRESS_AWARE       0x0020  // App can handle >2gb addresses
+#define IMAGE_FILE_BYTES_REVERSED_LO         0x0080  // Bytes of machine word are reversed.
+#define IMAGE_FILE_32BIT_MACHINE             0x0100  // 32 bit word machine.
+#define IMAGE_FILE_DEBUG_STRIPPED            0x0200  // Debugging info stripped from file in .DBG file
+#define IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP   0x0400  // If Image is on removable media, copy and run from the swap file.
+#define IMAGE_FILE_NET_RUN_FROM_SWAP         0x0800  // If Image is on Net, copy and run from the swap file.
+#define IMAGE_FILE_SYSTEM                    0x1000  // System File.
+#define IMAGE_FILE_DLL                       0x2000  // File is a DLL.
+#define IMAGE_FILE_UP_SYSTEM_ONLY            0x4000  // File should only be run on a UP machine
+#define IMAGE_FILE_BYTES_REVERSED_HI         0x8000  // Bytes of machine word are reversed.
+
+#define OPTIONAL_MAGIC_PE32         0x10B
+#define OPTIONAL_MAGIC_PE32_PLUS    0x20B
+#define OPTIONAL_MAGIC_ROM          0x107
 
 typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
     WORD   e_magic;                     // Magic number
@@ -158,4 +182,4 @@ typedef struct _IMAGE_NT_HEADERS {
     IMAGE_OPTIONAL_HEADER32 OptionalHeader;
 } IMAGE_NT_HEADERS32, *PIMAGE_NT_HEADERS32;
 
-void visualize(const char* filename);
+void exe_visualize(const char* filename);

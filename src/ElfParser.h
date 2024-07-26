@@ -2,4 +2,4 @@
 
 // Not implemented yet
 
-void visualize(const char* filename);
+void elf_visualize(const char* filename);
