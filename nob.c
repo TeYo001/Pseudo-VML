@@ -104,9 +104,11 @@ int main(int argc, char** argv)
         }
     }
 
-    const unsigned int INCLUDE_FILES_COUNT = 1;
+    const unsigned int INCLUDE_FILES_COUNT = 3;
     const char* include_file_locations[] = {
-        "src/Main"
+        "src/Main",
+        "src/ExeParser",
+        "src/ElfParser"
     };
     
     if (mainCmd == JUST_RUN || mainCmd == JUST_DEBUG) goto run_skip;
