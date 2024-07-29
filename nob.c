@@ -133,6 +133,7 @@ int main(int argc, char** argv)
         nob_cmd_append(&cmd, COMPILER_NAME, "-ggdb");
         nob_cmd_append(&cmd, "-I", SOURCE_DIRECTORY);
         nob_cmd_append(&cmd, "-I", LIBRARY_DIRECTORY);
+        nob_cmd_append(&cmd, "-I", "./lib/xed/includes/");
         nob_cmd_append(&cmd, "-c", c_file_str);
         nob_cmd_append(&cmd, "-o", o_file_str);
         
@@ -165,6 +166,11 @@ int main(int argc, char** argv)
             strcat(o_file_str, ".o");
             nob_cmd_append(&cmd, o_file_str);
         }
+        // add the encode / decode library
+        char link_command[PATH_MAX] = "-L";
+        strcat(link_command, WORKING_DIRECTORY);
+        strcat(link_command, "lib/xed");
+        nob_cmd_append(&cmd, link_command, "-l:libxed.a"); 
 
         if (!nob_cmd_run_sync(cmd)) return 1;
     }
