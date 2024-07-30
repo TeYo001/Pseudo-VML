@@ -1,0 +1,80 @@
+#include "AsmParser.h"
+#include "stdio.h"
+#include "stdbool.h"
+#include "stdlib.h"
+
+bool xed_initialized = false;
+
+AsmParserState* build_asm_parser_state(
+        const char* binary_instructions_filename,
+        unsigned int decoded_instructions_max_count) {
+    FILE* binary_instructions_fd = fopen(binary_instructions_filename, "r");
+    AsmParserState* asm_state = malloc(sizeof(AsmParserState));
+    unsigned int binary_instructions_length = 0;
+    while (fgetc(binary_instructions_fd) != EOF) {
+        binary_instructions_length++;
+    }
+    fseek(binary_instructions_fd, 0, SEEK_SET);
+    unsigned char* binary_instructions = malloc(sizeof(char) * binary_instructions_length);
+    for (unsigned int i = 0; i < binary_instructions_length; i++) {
+        binary_instructions[i] = fgetc(binary_instructions_fd);
+    }
+    fclose(binary_instructions_fd);
+    asm_state->binary_instructions = binary_instructions;
+    asm_state->binary_instructions_length = binary_instructions_length;
+    asm_state->decoded_instructions = malloc(sizeof(xed_decoded_inst_t) * decoded_instructions_max_count);
+    asm_state->decoded_instructions_max_count = decoded_instructions_max_count;
+    asm_state->instruction_lengths = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
+    asm_state->binary_read_ptr = 0;
+    
+    if (!xed_initialized) {
+        xed_tables_init();
+        xed_initialized = true;
+    }
+    asm_state->xed_machine_mode = XED_MACHINE_MODE_LONG_64;
+    asm_state->xed_stack_addr_width = XED_ADDRESS_WIDTH_64b;
+
+    return asm_state;
+}
+
+void parse_asm(AsmParserState* asm_state) {
+    while (asm_state->binary_read_ptr < asm_state->binary_instructions_length) {
+        parse_instruction(asm_state);
+        skip_zeros(asm_state); // TODO(TeYo): Figure out if this is necessary
+    }
+}
+
+void parse_instruction(AsmParserState* asm_state) {
+    if (asm_state->decoded_instructions_max_count <= asm_state->decoded_instructions_count) {
+        printf("ERROR: Maximum instruction count reached\n");
+        exit(1);
+    }
+    unsigned char bin_instruction[15] = {0};
+    unsigned int local_binary_read_ptr = asm_state->binary_read_ptr;
+    for (unsigned int bytes = 0; bytes < 16; bytes++) {
+        xed_error_enum_t error;
+        xed_decoded_inst_t instruction;
+        xed_decoded_inst_zero(&instruction);
+        xed_decoded_inst_set_mode(&instruction, asm_state->xed_machine_mode, asm_state->xed_stack_addr_width);
+        error = xed_decode(&instruction, XED_STATIC_CAST(const xed_uint8_t*, bin_instruction), bytes);
+
+        if (error == XED_ERROR_NONE) {
+            unsigned int length_bytes = xed_decoded_inst_get_length(&instruction);
+            asm_state->decoded_instructions[asm_state->decoded_instructions_count] = instruction;
+            asm_state->instruction_lengths[asm_state->decoded_instructions_count] = length_bytes;
+            asm_state->decoded_instructions_count++;
+            asm_state->binary_read_ptr += length_bytes;
+            break;
+        }
+        bin_instruction[bytes] = asm_state->binary_instructions[local_binary_read_ptr];
+        local_binary_read_ptr++;
+    }
+}
+
+void skip_zeros(AsmParserState* asm_state) {
+    while (asm_state->binary_instructions[asm_state->binary_read_ptr] == 0x00 
+            && asm_state->binary_read_ptr < asm_state->binary_instructions_length) {
+        asm_state->binary_read_ptr++;
+        printf("skipped zero: %u\n", asm_state->binary_read_ptr);
+    }
+}
