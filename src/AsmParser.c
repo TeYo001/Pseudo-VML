@@ -75,6 +75,5 @@ void skip_zeros(AsmParserState* asm_state) {
     while (asm_state->binary_instructions[asm_state->binary_read_ptr] == 0x00 
             && asm_state->binary_read_ptr < asm_state->binary_instructions_length) {
         asm_state->binary_read_ptr++;
-        printf("skipped zero: %u\n", asm_state->binary_read_ptr);
     }
 }

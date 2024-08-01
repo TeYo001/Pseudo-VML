@@ -291,7 +291,55 @@ static void disassemble_raw_text_code(const char* raw_text_code,
     fclose(asm_fd);
 }
 
-void exe_visualize(const char* filename) {
+ExeInfo* exe_get_info(const char* filename) {
+    FILE* fd = fopen(filename, "r");
+    IMAGE_DOS_HEADER* dos_header = malloc(sizeof(IMAGE_DOS_HEADER));
+    IMAGE_NT_HEADERS64* nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
+    IMAGE_SECTION_HEADER* text_section = malloc(sizeof(IMAGE_SECTION_HEADER));
+    char* raw_text_code;
+
+    fgets((char*)dos_header, sizeof(IMAGE_DOS_HEADER), fd);
+    print_dos_header(dos_header);
+
+    fseek(fd, dos_header->e_lfanew, SEEK_SET);
+    fgets((char*)nt_header, sizeof(IMAGE_NT_HEADERS64), fd);
+    print_nt_header(nt_header);
+
+    char curr = fgetc(fd);
+    bool found_text_section = false;
+    while (curr != EOF) {
+        if (curr == '.') {
+            char buffer[5];
+            fgets(buffer, 5, fd);
+            if (strcmp(buffer, "text") == 0) {
+                found_text_section = true;
+                fseek(fd, -5, SEEK_CUR);
+                break;
+            }
+        }
+        curr = fgetc(fd);
+    }
+    if (!found_text_section) {
+        printf("couldn't find .text section\n");
+        exit(1);
+    }
+    
+    fgets((char*)text_section, sizeof(IMAGE_SECTION_HEADER), fd);
+    print_section_header(text_section);
+    raw_text_code = malloc(text_section->SizeOfRawData);
+    fseek(fd, text_section->PointerToRawData, SEEK_SET);
+    fgets(raw_text_code, text_section->SizeOfRawData, fd);
+    fclose(fd);
+
+    ExeInfo* info = malloc(sizeof(ExeInfo));
+    info->dos_header = dos_header;
+    info->nt_header = nt_header;
+    info->text_section = text_section;
+    info->raw_text_code = raw_text_code;
+    return info;
+}
+
+void exe_visualize(const char* filename) { // NOTE(TeYo): Currently being phased out
     printf("opening file: %s\n", filename);
 
     FILE* fd = fopen(filename, "r");
