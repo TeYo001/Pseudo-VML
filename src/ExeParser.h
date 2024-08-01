@@ -182,4 +182,12 @@ typedef struct _IMAGE_NT_HEADERS {
     IMAGE_OPTIONAL_HEADER32 OptionalHeader;
 } IMAGE_NT_HEADERS32, *PIMAGE_NT_HEADERS32;
 
+typedef struct {
+    IMAGE_DOS_HEADER* dos_header;
+    IMAGE_NT_HEADERS64* nt_header;
+    IMAGE_SECTION_HEADER* text_section;
+    char* raw_text_code;
+} ExeInfo;
+
+ExeInfo* exe_get_info(const char* filename);
 void exe_visualize(const char* filename);

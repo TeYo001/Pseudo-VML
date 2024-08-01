@@ -15,19 +15,32 @@
 #endisomethingwrong.hf
 */
 
+void get_all_info_from_exe(const char* exe_filename, const char* binary_filename, const char* objdump_filename, unsigned int max_instruction_count) {
+    ExeInfo* exe_info = exe_get_info(exe_filename);
+    
+    FILE* bin_fd = fopen(binary_filename, "w");
+    fwrite(exe_info->raw_text_code, exe_info->text_section->SizeOfRawData, 1, bin_fd);
+    fclose(bin_fd);
 
+    // objdump -b binary -m i386:x86-64 -D temp.bin > something.asm
+    char* objdump_command_str = malloc(sizeof(char) * 4096);
+    snprintf(objdump_command_str, 4096, "objdump -b binary -m i386:x86-64 -D %s > %s", binary_filename, objdump_filename); // TODO(TeYo): filanames are not allowed to contain spaces
+    system(objdump_command_str);
+
+    AsmParserState* asm_state = build_asm_parser_state(binary_filename, max_instruction_count);
+    parse_asm(asm_state);
+}
 
 int main() {
-    FILE* fd = fopen("test/small_bin.bin", "w");
-    unsigned char itext[15] = { 0xf, 0x85, 0x99, 0x00, 0x00, 0x00 };
-    fwrite(itext, sizeof(char) * 15, 1, fd);
-    fclose(fd);
-
-    AsmParserState* asm_state = build_asm_parser_state("test/small_bin.bin", 8);
+    AsmParserState* asm_state = build_asm_parser_state("test/temp.bin", 4096);
     parse_asm(asm_state);
 
-    assert(asm_state->decoded_instructions_count == 1);
-    assert(asm_state->instruction_lengths[0] == 6);
+    printf("count: %u\n", asm_state->decoded_instructions_count);
+
+    for (int i = 0; i < asm_state->decoded_instructions_count; i++) {
+        xed_decoded_inst_t* instruction = &asm_state->decoded_instructions[i];
+        printf("%d: %s\n", i, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(instruction)));
+    }
 
     printf("SUCCCESS!\n");
 
