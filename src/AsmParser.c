@@ -24,6 +24,7 @@ AsmParserState* build_asm_parser_state(
     asm_state->binary_instructions_length = binary_instructions_length;
     asm_state->decoded_instructions = malloc(sizeof(xed_decoded_inst_t) * decoded_instructions_max_count);
     asm_state->decoded_instructions_max_count = decoded_instructions_max_count;
+    asm_state->decoded_instructions_count = 0;
     asm_state->instruction_lengths = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
     asm_state->binary_read_ptr = 0;
     
@@ -37,10 +38,16 @@ AsmParserState* build_asm_parser_state(
     return asm_state;
 }
 
+void free_asm_state(AsmParserState* asm_state) {
+    free((void*)asm_state->binary_instructions);
+    free(asm_state->decoded_instructions);
+    free(asm_state);
+}
+
 void parse_asm(AsmParserState* asm_state) {
     while (asm_state->binary_read_ptr < asm_state->binary_instructions_length) {
         parse_instruction(asm_state);
-        skip_zeros(asm_state); // TODO(TeYo): Figure out if this is necessary
+        skip_zeros(asm_state);
     }
 }
 

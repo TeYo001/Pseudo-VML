@@ -6,6 +6,7 @@ typedef uint32_t DWORD;
 typedef int32_t LONG;
 typedef uint8_t BYTE;
 typedef uint64_t ULONGLONG;
+typedef char CHAR;
 
 #define IMAGE_NUMBEROF_DIRECTORY_ENTRIES    16
 #define IMAGE_SIZEOF_SHORT_NAME              8
@@ -182,12 +183,63 @@ typedef struct _IMAGE_NT_HEADERS {
     IMAGE_OPTIONAL_HEADER32 OptionalHeader;
 } IMAGE_NT_HEADERS32, *PIMAGE_NT_HEADERS32;
 
+typedef struct _IMAGE_IMPORT_DESCRIPTOR {
+    union {
+        DWORD   Characteristics;
+        DWORD   OriginalFirstThunk;
+    } DUMMYUNIONNAME;
+    DWORD   TimeDateStamp;
+    DWORD   ForwarderChain;
+    DWORD   Name;
+    DWORD   FirstThunk;
+} IMAGE_IMPORT_DESCRIPTOR;
+
+typedef struct _IMAGE_THUNK_DATA64 {
+    union {
+        ULONGLONG ForwarderString;  // PBYTE 
+        ULONGLONG Function;         // PDWORD
+        ULONGLONG Ordinal;
+        ULONGLONG AddressOfData;    // PIMAGE_IMPORT_BY_NAME
+    } u1;
+} IMAGE_THUNK_DATA64;
+typedef IMAGE_THUNK_DATA64 * PIMAGE_THUNK_DATA64;
+
+typedef struct _IMAGE_THUNK_DATA32 {                               
+    union {
+        DWORD ForwarderString;      // PBYTE 
+        DWORD Function;             // PDWORD
+        DWORD Ordinal;
+        DWORD AddressOfData;        // PIMAGE_IMPORT_BY_NAME
+    } u1;
+} IMAGE_THUNK_DATA32;
+typedef IMAGE_THUNK_DATA32 * PIMAGE_THUNK_DATA32;
+
+typedef struct _IMAGE_IMPORT_BY_NAME {
+    WORD    Hint;
+    CHAR   Name[1];
+} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
+
+typedef struct {
+    char* name;
+    WORD* hints;
+    char** function_names;
+    unsigned int function_count;
+} DllInfo; 
+
+typedef struct {
+    DllInfo* dll_infos;
+    unsigned int dll_info_count;
+} ImportInfo;
+
 typedef struct {
     IMAGE_DOS_HEADER* dos_header;
     IMAGE_NT_HEADERS64* nt_header;
     IMAGE_SECTION_HEADER* text_section;
     char* raw_text_code;
+    IMAGE_SECTION_HEADER* import_section;
+    char* raw_import_data;
 } ExeInfo;
 
+void free_exe_info(ExeInfo* exe_info);
 ExeInfo* exe_get_info(const char* filename);
 void exe_visualize(const char* filename);
