@@ -18,6 +18,7 @@ AsmParserState* build_asm_parser_state(
         const char* binary_instructions_filename,
         unsigned int decoded_instructions_max_count);
 
+void free_asm_state(AsmParserState* asm_state);
 void parse_asm(AsmParserState* asm_state);
 void parse_instruction(AsmParserState* asm_state);
 void skip_zeros(AsmParserState* asm_state);

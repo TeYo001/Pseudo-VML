@@ -291,55 +291,195 @@ static void disassemble_raw_text_code(const char* raw_text_code,
     fclose(asm_fd);
 }
 
+static void find_section(FILE* fd, fpos_t search_start_loc, const char* section_name, IMAGE_SECTION_HEADER** out_section, char**out_raw_data) {
+    fsetpos(fd, &search_start_loc);
+    char curr = fgetc(fd);
+    bool found_section = false;
+    while (curr != EOF) {
+        if (curr == '.') {
+            char buffer[strlen(section_name) + 1];
+            fgets(buffer, strlen(section_name) + 1, fd);
+            if (strcmp(buffer, section_name) == 0) {
+                found_section = true;
+                fseek(fd, -(strlen(section_name) + 1), SEEK_CUR);
+                break;
+            }
+        }
+        curr = fgetc(fd);
+    }
+    if (!found_section) {
+        printf("couldn't find .%s section\n", section_name);
+        exit(1);
+    }
+
+    fgets((char*)*out_section, sizeof(IMAGE_SECTION_HEADER), fd);
+    *out_raw_data = malloc((*out_section)->SizeOfRawData);
+    fseek(fd, (*out_section)->PointerToRawData, SEEK_SET);
+    fgets(*out_raw_data, (*out_section)->SizeOfRawData, fd);
+}
+
+// NOTE(TeYo): This probably wont actually be used, but its a good reminder for how to actually do these kinds of conversions
+static unsigned int rva_to_file_offset(unsigned int data_rva, unsigned int section_virtual_address, unsigned int section_file_offset) {
+    return data_rva - section_virtual_address + section_file_offset;
+}
+
+static void parse_import_descriptors(const char* data, 
+        unsigned int data_length,
+        IMAGE_IMPORT_DESCRIPTOR** out_descriptors, 
+        unsigned int* out_descriptor_count) {
+    if (data_length < sizeof(IMAGE_IMPORT_DESCRIPTOR)) {
+        printf("ERROR: import data is too small.\n");
+        exit(1);
+    }
+
+    unsigned int descriptor_count = 0;
+    unsigned int read_ptr = 1;
+    while (read_ptr < data_length) {
+        if (data[read_ptr] == 0x00) {
+            break;
+        }
+        descriptor_count++;
+        read_ptr += sizeof(IMAGE_IMPORT_DESCRIPTOR);
+    }
+    memcpy(*out_descriptors, data, sizeof(IMAGE_IMPORT_DESCRIPTOR) * descriptor_count);
+    *out_descriptor_count = descriptor_count;
+}
+
+static void parse_import_functions(const char* data, 
+        unsigned int data_length,
+        unsigned int import_virtual_address,
+        IMAGE_THUNK_DATA64* thunk_data, 
+        IMAGE_IMPORT_BY_NAME*** out_func_names, 
+        unsigned int* out_func_name_count) {
+    unsigned int func_name_count = 0;
+    unsigned int read_ptr = thunk_data->u1.AddressOfData - import_virtual_address;
+    while(read_ptr < data_length) {
+        unsigned int start_ptr = read_ptr;
+        read_ptr += sizeof(WORD);
+        if (data[read_ptr] == 0x00) {
+            break;
+        }
+        while (data[read_ptr] != 0x00) {
+            if (data_length <= read_ptr) {
+                printf("ERROR: Shouldnt be possible if the exe is correctly built.\n");
+                exit(1);
+            }
+            read_ptr++;
+        }
+        unsigned int func_name_size = read_ptr - start_ptr + 1;
+        IMAGE_IMPORT_BY_NAME* func_name = malloc(func_name_size);
+        memcpy(func_name, data + start_ptr, func_name_size);
+        (*out_func_names)[func_name_count] = func_name;
+        func_name_count++;
+        read_ptr++;
+    }
+}
+
+static void parse_import_data(const char* import_raw_data, unsigned int data_length, unsigned int import_virtual_address) {
+    const unsigned int MAX_DESCRIPTOR_COUNT = 8;
+    const unsigned int MAX_FUNCTION_NAME_COUNT = 128;
+    const unsigned int MAX_NAME_LENGTH = 512;
+
+    IMAGE_IMPORT_DESCRIPTOR* descriptors = malloc(sizeof(IMAGE_IMPORT_DESCRIPTOR) * MAX_DESCRIPTOR_COUNT);
+    unsigned int descriptor_count;
+    ImportInfo* import_info = malloc(sizeof(ImportInfo));
+    import_info->dll_infos = malloc(sizeof(DllInfo) * MAX_DESCRIPTOR_COUNT);
+    import_info->dll_info_count = 0;
+
+    FILE* fd = fopen("test/idata.bin", "w");
+    fwrite(import_raw_data, data_length, 1, fd);
+    fclose(fd);
+
+    parse_import_descriptors(import_raw_data, data_length, &descriptors, &descriptor_count);
+
+    for (unsigned int i = 0; i < descriptor_count; i++) {
+        printf("DLL Name %u: %s\n", i, import_raw_data + descriptors[i].Name - import_virtual_address);
+        IMAGE_THUNK_DATA64* thunk = (void*)(import_raw_data + descriptors[i].DUMMYUNIONNAME.OriginalFirstThunk - import_virtual_address);
+        IMAGE_IMPORT_BY_NAME** function_names = malloc(sizeof(void*) * MAX_FUNCTION_NAME_COUNT);
+        unsigned int function_name_count;
+        parse_import_functions(import_raw_data, data_length, import_virtual_address, thunk, &function_names, &function_name_count);
+        
+        // TODO(TeYo): Fix this so that it doesnt do a segmentation fault
+        DllInfo* dllInfo = &import_info->dll_infos[import_info->dll_info_count];
+        dllInfo->name = malloc(MAX_NAME_LENGTH);
+        strncpy(dllInfo->name, import_raw_data + descriptors[i].Name - import_virtual_address, MAX_NAME_LENGTH);
+        dllInfo->function_names = malloc(sizeof(void*) * MAX_FUNCTION_NAME_COUNT);
+        dllInfo->hints = malloc(sizeof(WORD) * MAX_FUNCTION_NAME_COUNT);
+        
+        for (unsigned int j = 0; j < function_name_count; j++) {
+            dllInfo->function_names[j] = malloc(MAX_NAME_LENGTH);
+            strncpy(dllInfo->function_names[j], function_names[j]->Name, MAX_NAME_LENGTH);
+            dllInfo->hints[j] = function_names[j]->Hint;
+        }
+    }
+}
+
+void free_exe_info(ExeInfo* exe_info) {
+    free(exe_info->dos_header);
+    free(exe_info->nt_header);
+    free(exe_info->text_section);
+    free(exe_info->raw_text_code);
+    free(exe_info->import_section);
+    free(exe_info->raw_import_data);
+    free(exe_info);
+}
+
 ExeInfo* exe_get_info(const char* filename) {
     FILE* fd = fopen(filename, "r");
     IMAGE_DOS_HEADER* dos_header = malloc(sizeof(IMAGE_DOS_HEADER));
     IMAGE_NT_HEADERS64* nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
     IMAGE_SECTION_HEADER* text_section = malloc(sizeof(IMAGE_SECTION_HEADER));
     char* raw_text_code;
+    IMAGE_SECTION_HEADER* import_section = malloc(sizeof(IMAGE_SECTION_HEADER));
+    char* raw_import_data;
+    fpos_t header_end_pos;
 
     fgets((char*)dos_header, sizeof(IMAGE_DOS_HEADER), fd);
     print_dos_header(dos_header);
-
     fseek(fd, dos_header->e_lfanew, SEEK_SET);
     fgets((char*)nt_header, sizeof(IMAGE_NT_HEADERS64), fd);
+    fgetpos(fd, &header_end_pos);
     print_nt_header(nt_header);
-
-    char curr = fgetc(fd);
-    bool found_text_section = false;
-    while (curr != EOF) {
-        if (curr == '.') {
-            char buffer[5];
-            fgets(buffer, 5, fd);
-            if (strcmp(buffer, "text") == 0) {
-                found_text_section = true;
-                fseek(fd, -5, SEEK_CUR);
-                break;
-            }
-        }
-        curr = fgetc(fd);
-    }
-    if (!found_text_section) {
-        printf("couldn't find .text section\n");
-        exit(1);
-    }
-    
-    fgets((char*)text_section, sizeof(IMAGE_SECTION_HEADER), fd);
-    print_section_header(text_section);
-    raw_text_code = malloc(text_section->SizeOfRawData);
-    fseek(fd, text_section->PointerToRawData, SEEK_SET);
-    fgets(raw_text_code, text_section->SizeOfRawData, fd);
+    find_section(fd, header_end_pos, "text", &text_section, &raw_text_code);
+    find_section(fd, header_end_pos, "idata", &import_section, &raw_import_data);
     fclose(fd);
+
+    parse_import_data(raw_import_data, import_section->SizeOfRawData, import_section->VirtualAddress);
 
     ExeInfo* info = malloc(sizeof(ExeInfo));
     info->dos_header = dos_header;
     info->nt_header = nt_header;
     info->text_section = text_section;
     info->raw_text_code = raw_text_code;
+    info->import_section = import_section;
+    info->raw_import_data = raw_import_data;
     return info;
 }
 
-void exe_visualize(const char* filename) { // NOTE(TeYo): Currently being phased out
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void exe_visualize(const char* filename) {    
+    printf("DEPRICATED\n");
+    exit(1);
     printf("opening file: %s\n", filename);
 
     FILE* fd = fopen(filename, "r");
