@@ -223,6 +223,7 @@ typedef struct {
     char* name;
     WORD* hints;
     char** function_names;
+    ULONGLONG* function_pointers;
     unsigned int function_count;
 } DllInfo; 
 
@@ -238,8 +239,11 @@ typedef struct {
     char* raw_text_code;
     IMAGE_SECTION_HEADER* import_section;
     char* raw_import_data;
+    ImportInfo* import_info;
 } ExeInfo;
 
 void free_exe_info(ExeInfo* exe_info);
+void free_import_info(ImportInfo* import_info);
+
 ExeInfo* exe_get_info(const char* filename);
 void exe_visualize(const char* filename);

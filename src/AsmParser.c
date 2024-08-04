@@ -26,8 +26,9 @@ AsmParserState* build_asm_parser_state(
     asm_state->decoded_instructions_max_count = decoded_instructions_max_count;
     asm_state->decoded_instructions_count = 0;
     asm_state->instruction_lengths = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
+    asm_state->binary_instruction_pointers = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
     asm_state->binary_read_ptr = 0;
-    
+
     if (!xed_initialized) {
         xed_tables_init();
         xed_initialized = true;
@@ -41,6 +42,7 @@ AsmParserState* build_asm_parser_state(
 void free_asm_state(AsmParserState* asm_state) {
     free((void*)asm_state->binary_instructions);
     free(asm_state->decoded_instructions);
+    free(asm_state->binary_instruction_pointers);
     free(asm_state);
 }
 
@@ -69,6 +71,7 @@ void parse_instruction(AsmParserState* asm_state) {
             unsigned int length_bytes = xed_decoded_inst_get_length(&instruction);
             asm_state->decoded_instructions[asm_state->decoded_instructions_count] = instruction;
             asm_state->instruction_lengths[asm_state->decoded_instructions_count] = length_bytes;
+            asm_state->binary_instruction_pointers[asm_state->decoded_instructions_count] = asm_state->binary_read_ptr;
             asm_state->decoded_instructions_count++;
             asm_state->binary_read_ptr += length_bytes;
             break;

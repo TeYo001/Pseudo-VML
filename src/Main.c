@@ -43,6 +43,19 @@ void get_all_info_from_exe(const char* exe_filename, const char* binary_filename
     }
 }
 
+void print_asm_instruction(AsmParserState* asm_state, unsigned int index) {
+    xed_decoded_inst_t* inst = &asm_state->decoded_instructions[index];
+    unsigned int length_bytes = asm_state->instruction_lengths[index];
+    xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
+    unsigned int ptr = asm_state->binary_instruction_pointers[index];
+
+    printf("0x");
+    for (int i = 0; i < length_bytes; i++) {
+        printf("%x", asm_state->binary_instructions[ptr + i]);
+    }
+    printf(" | %s: length: %u\n", xed_iclass_enum_t2str(iclass), length_bytes);
+}
+
 int main() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
@@ -54,13 +67,11 @@ int main() {
         xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(&asm_state->decoded_instructions[i]);
         if (iclass == XED_ICLASS_SYSCALL) {
             printf("syscall: %d\n", i);
-        } else if (iclass == XED_ICLASS_CALL_NEAR) {
-            printf("call: %d\n", i);
-            const xed_inst_t* inst = xed_decoded_inst_inst(&asm_state->decoded_instructions[i]);
-            xed_operand_enum_t op = xed_operand_name(xed_inst_operand(inst, 1));
-            printf("op 0: %s\n", xed_operand_enum_t2str(op));
         } 
-        else {
+        else if (iclass == XED_ICLASS_CALL_NEAR) {
+            printf("call %d: ", i);
+            print_asm_instruction(asm_state, i);
+        } else {
             //printf("other: %s\n", xed_iclass_enum_t2str(iclass));
         }
     }
