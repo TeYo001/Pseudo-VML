@@ -9,6 +9,7 @@ typedef struct {
     unsigned int decoded_instructions_count;
     unsigned int decoded_instructions_max_count;
     unsigned int* instruction_lengths;
+    unsigned int* binary_instruction_pointers;
     unsigned int binary_read_ptr;
     xed_machine_mode_enum_t xed_machine_mode;
     xed_address_width_enum_t xed_stack_addr_width;
