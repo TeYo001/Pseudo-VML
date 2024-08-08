@@ -71,7 +71,7 @@ typedef struct _IMAGE_SECTION_HEADER {
     } Misc;
     DWORD   VirtualAddress;
     DWORD   SizeOfRawData;
-    DWORD   PointerToRawData;
+    DWORD   PointerToRawData; // NOTE(TeYo): Must be divisible by 64 (will therefore usually be a little smaller then the actual PointerToRawData) (very annoying)
     DWORD   PointerToRelocations;
     DWORD   PointerToLinenumbers;
     WORD    NumberOfRelocations;
@@ -237,8 +237,10 @@ typedef struct {
     IMAGE_NT_HEADERS64* nt_header;
     IMAGE_SECTION_HEADER* text_section;
     char* raw_text_code;
+    unsigned int raw_text_file_offset;
     IMAGE_SECTION_HEADER* import_section;
     char* raw_import_data;
+    unsigned int raw_import_file_offset;
     ImportInfo* import_info;
 } ExeInfo;
 
