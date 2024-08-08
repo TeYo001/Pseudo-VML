@@ -7,7 +7,8 @@ bool xed_initialized = false;
 
 AsmParserState* build_asm_parser_state(
         const char* binary_instructions_filename,
-        unsigned int decoded_instructions_max_count) {
+        unsigned int decoded_instructions_max_count,
+        unsigned int text_file_offset) {
     FILE* binary_instructions_fd = fopen(binary_instructions_filename, "r");
     AsmParserState* asm_state = malloc(sizeof(AsmParserState));
     unsigned int binary_instructions_length = 0;
@@ -28,6 +29,7 @@ AsmParserState* build_asm_parser_state(
     asm_state->instruction_lengths = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
     asm_state->binary_instruction_pointers = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
     asm_state->binary_read_ptr = 0;
+    asm_state->text_file_offset = text_file_offset;
 
     if (!xed_initialized) {
         xed_tables_init();
