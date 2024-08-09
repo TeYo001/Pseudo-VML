@@ -25,7 +25,7 @@ void get_all_info_from_exe(const char* exe_filename, const char* binary_filename
 
     // objdump -b binary -m i386:x86-64 -D temp.bin > something.asm
     char* objdump_command_str = malloc(sizeof(char) * 512);
-    snprintf(objdump_command_str, 4096, "objdump -b binary -m i386:x86-64 -D %s > %s", binary_filename, objdump_filename); // TODO(TeYo): filanames are not allowed to contain spaces
+    snprintf(objdump_command_str, 512, "objdump -b binary -m i386:x86-64 -D %s > %s", binary_filename, objdump_filename); // TODO(TeYo): filanames are not allowed to contain spaces
     system(objdump_command_str);
 
     AsmParserState* asm_state = build_asm_parser_state(binary_filename, max_instruction_count, exe_info->raw_text_file_offset);
@@ -49,8 +49,6 @@ void print_asm_instruction(AsmParserState* asm_state, unsigned int index) {
     xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
     unsigned int ptr = asm_state->binary_instruction_pointers[index];
     
-    if (index != 362) return;
-
     printf("0x");
     for (int i = 0; i < length_bytes; i++) {
         printf("%1x", asm_state->binary_instructions[ptr + i]);
@@ -60,6 +58,7 @@ void print_asm_instruction(AsmParserState* asm_state, unsigned int index) {
     uint8_t opcode = *(uint8_t*)(asm_state->binary_instructions + ptr);
     switch (opcode) {
         case 0xe8: {
+            break;
             if (length_bytes != 5) {
                 printf("ERROR: Impossible instruction length\n");
                 exit(1);
@@ -70,6 +69,15 @@ void print_asm_instruction(AsmParserState* asm_state, unsigned int index) {
             printf("current ptr (absolute): 0x%" PRIx32 "\n", asm_state->text_file_offset + ptr);
             printf("disp32: 0x%" PRIx32 "\n", disp32);
             printf("target: 0x%" PRIx32 "\n", target);
+        } break;
+        case 0xff: {
+            if (length_bytes != 6) {
+                break;
+                printf("ERROR: Impossible instruction length\n");
+                exit(1);
+            }
+            uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + ptr + 2);
+            printf("rel32: 0x%" PRIx32 "\n", rel32);
         } break;
         default: break;
     }
@@ -96,8 +104,8 @@ int main() {
             printf("syscall 32: %d\n", i);
         } 
         else if (iclass == XED_ICLASS_CALL_NEAR) {
-            //printf("call %d: ", i);
-            if (i > 500) {
+            printf("call %d: ", i);
+            if (i > 800) {
                 break;
             }
             print_asm_instruction(asm_state, i);
