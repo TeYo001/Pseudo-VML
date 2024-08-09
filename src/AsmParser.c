@@ -2,6 +2,7 @@
 #include "stdio.h"
 #include "stdbool.h"
 #include "stdlib.h"
+#include "sys/stat.h"
 
 bool xed_initialized = false;
 
@@ -9,13 +10,14 @@ AsmParserState* build_asm_parser_state(
         const char* binary_instructions_filename,
         unsigned int decoded_instructions_max_count,
         unsigned int text_file_offset) {
+    unsigned int binary_instructions_length = 0;
+    {
+        struct stat file_stats = {0};
+        stat(binary_instructions_filename, &file_stats);
+        binary_instructions_length = file_stats.st_size;
+    }
     FILE* binary_instructions_fd = fopen(binary_instructions_filename, "r");
     AsmParserState* asm_state = malloc(sizeof(AsmParserState));
-    unsigned int binary_instructions_length = 0;
-    while (fgetc(binary_instructions_fd) != EOF) {
-        binary_instructions_length++;
-    }
-    fseek(binary_instructions_fd, 0, SEEK_SET);
     unsigned char* binary_instructions = malloc(sizeof(char) * binary_instructions_length);
     for (unsigned int i = 0; i < binary_instructions_length; i++) {
         binary_instructions[i] = fgetc(binary_instructions_fd);
@@ -49,19 +51,24 @@ void free_asm_state(AsmParserState* asm_state) {
 }
 
 void parse_asm(AsmParserState* asm_state) {
+    printf("binary instrctions length: %d\n", asm_state->binary_instructions_length);
     while (asm_state->binary_read_ptr < asm_state->binary_instructions_length) {
-        parse_instruction(asm_state);
-        skip_zeros(asm_state);
+        if (!parse_instruction(asm_state)) {
+            break;       
+        }
     }
 }
 
-void parse_instruction(AsmParserState* asm_state) {
+bool parse_instruction(AsmParserState* asm_state) {
     if (asm_state->decoded_instructions_max_count <= asm_state->decoded_instructions_count) {
         printf("ERROR: Maximum instruction count reached\n");
         exit(1);
     }
+
     unsigned char bin_instruction[15] = {0};
     unsigned int local_binary_read_ptr = asm_state->binary_read_ptr;
+    bool found_valid = false;
+
     for (unsigned int bytes = 0; bytes < 16; bytes++) {
         xed_error_enum_t error;
         xed_decoded_inst_t instruction;
@@ -76,11 +83,14 @@ void parse_instruction(AsmParserState* asm_state) {
             asm_state->binary_instruction_pointers[asm_state->decoded_instructions_count] = asm_state->binary_read_ptr;
             asm_state->decoded_instructions_count++;
             asm_state->binary_read_ptr += length_bytes;
+            found_valid = true;
             break;
         }
         bin_instruction[bytes] = asm_state->binary_instructions[local_binary_read_ptr];
         local_binary_read_ptr++;
     }
+    
+    return found_valid;
 }
 
 void skip_zeros(AsmParserState* asm_state) {

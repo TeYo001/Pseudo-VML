@@ -280,7 +280,7 @@ static void disassemble_raw_text_code(const char* raw_text_code,
         const char* out_asm_filename) {
     FILE* binary_fd = fopen(out_binary_filename, "w");
     FILE* asm_fd = fopen(out_asm_filename, "w");
-    char* cmd_str_buffer = malloc(2048);
+    char* cmd_str_buffer = malloc(512);
 
     snprintf(cmd_str_buffer, 2048, "ndisasm -b 64 %s > %s", out_binary_filename, out_asm_filename);
     fwrite(raw_text_code, size, 1, binary_fd);
@@ -288,11 +288,12 @@ static void disassemble_raw_text_code(const char* raw_text_code,
     printf("%s\n", cmd_str_buffer);
     //system(cmd_str_buffer);
 
+    free(cmd_str_buffer);
     fclose(binary_fd);
     fclose(asm_fd);
 }
 
-static void find_section(FILE* fd, unsigned int start_offset, const char* section_name, IMAGE_SECTION_HEADER** out_section, unsigned int* out_raw_data_file_offset, char**out_raw_data) {
+static void find_section(FILE* fd, unsigned int start_offset, const char* section_name, unsigned int file_alignment, IMAGE_SECTION_HEADER** out_section, unsigned int* out_raw_data_file_offset, char**out_raw_data) {
     fseek(fd, start_offset, SEEK_SET);
     char curr = fgetc(fd);
     bool found_section = false;
@@ -318,8 +319,11 @@ static void find_section(FILE* fd, unsigned int start_offset, const char* sectio
     *out_raw_data = malloc((*out_section)->SizeOfRawData);
     fseek(fd, (*out_section)->PointerToRawData, SEEK_SET);
     *out_raw_data_file_offset = ftell(fd);
-    fgets(*out_raw_data, (*out_section)->SizeOfRawData, fd);
-    
+    unsigned int part_count = (*out_section)->SizeOfRawData / file_alignment;
+    if (fread(*out_raw_data, file_alignment, part_count, fd) != part_count) {
+        printf("ERROR: couldn't read all data from file\n");
+        exit(1);
+    }
     fseek(fd, 0, SEEK_SET);
     BYTE byte;
     for (int i = 0; i < (*out_section)->PointerToRawData; i++) {
@@ -507,8 +511,8 @@ ExeInfo* exe_get_info(const char* filename) {
     fgets((char*)nt_header, sizeof(IMAGE_NT_HEADERS64), fd);
     header_end_offset = ftell(fd);
     print_nt_header(nt_header);
-    find_section(fd, header_end_offset, "text", &text_section, &raw_text_file_offset, &raw_text_code);
-    find_section(fd, header_end_offset, "idata", &import_section, &raw_import_file_offset, &raw_import_data);
+    find_section(fd, header_end_offset, "text", nt_header->OptionalHeader.FileAlignment, &text_section, &raw_text_file_offset, &raw_text_code);
+    find_section(fd, header_end_offset, "idata", nt_header->OptionalHeader.FileAlignment,&import_section, &raw_import_file_offset, &raw_import_data);
     fclose(fd);
 
     ImportInfo* import_info = parse_import_data(raw_import_data, import_section->SizeOfRawData, import_section->VirtualAddress, raw_import_file_offset);

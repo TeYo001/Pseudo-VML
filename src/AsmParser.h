@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../lib/xed/includes/xed-interface.h"
+#include "stdbool.h"
 
 typedef struct {
     const unsigned char* binary_instructions;
@@ -23,5 +24,5 @@ AsmParserState* build_asm_parser_state(
 
 void free_asm_state(AsmParserState* asm_state);
 void parse_asm(AsmParserState* asm_state);
-void parse_instruction(AsmParserState* asm_state);
+bool parse_instruction(AsmParserState* asm_state);
 void skip_zeros(AsmParserState* asm_state);
