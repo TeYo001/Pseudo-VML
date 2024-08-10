@@ -178,6 +178,12 @@ typedef struct _IMAGE_OPTIONAL_HEADER64 {
 
 */
 
+static void print_data_directory(const char* name, const IMAGE_DATA_DIRECTORY* data_entry) {
+    printf("  - ### DATA DIRECTORY ENTRY: %s ###:\n", name);
+    printf("   - Virtual Address: %" PRIx32 "\n", data_entry->VirtualAddress);
+    printf("   - Size: %" PRIu32 "\n", data_entry->Size);
+}
+
 static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header) {
     printf(" - ### OPTIONAL HEADER ###:\n");
     switch (optional_header->Magic) {
@@ -198,7 +204,7 @@ static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header
     printf("  - SizeOfInitializedData: %" PRIu32 "\n", optional_header->SizeOfInitializedData);
     printf("  - SizeOfUninitializedData: %" PRIu32 "\n", optional_header->SizeOfUninitializedData);
     printf("  - AddressOfEntryPoint: %" PRIu32 "\n", optional_header->AddressOfEntryPoint);
-    printf("  - BaseOfCode: %" PRIu32, optional_header->BaseOfCode);
+    printf("  - BaseOfCode: %" PRIu32 "\n", optional_header->BaseOfCode);
     printf("  - ImageBase (IRREVENANT... MOSTLY): %" PRIu64 "\n", optional_header->ImageBase);
     printf("  - SectionAlignment: %" PRIu32 "\n", optional_header->SectionAlignment);
     printf("  - FileAlignment: %" PRIu32 "\n", optional_header->FileAlignment);
@@ -225,6 +231,26 @@ static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header
     else {
         printf("  - NumberOfRvaAndSizes: VALID\n");
     }
+
+    // print data directories
+    {
+        print_data_directory("Export Table", &optional_header->DataDirectory[EXPORT_TABLE_DIRECTORY_ENTRY]);
+        print_data_directory("Import Table", &optional_header->DataDirectory[IMPORT_TABLE_DIRECTORY_ENTRY]);
+        print_data_directory("Resource Table Directory", &optional_header->DataDirectory[RESOURCE_TABLE_DIRECTORY_ENTRY]);
+        print_data_directory("Exception Table Directory", &optional_header->DataDirectory[EXCEPTION_TABLE_DIRECTORY_ENTRY]);
+        print_data_directory("Attribute Certificate Table", &optional_header->DataDirectory[ATTRIBUTE_CERTIFICATE_TABLE_ENTRY]);
+        print_data_directory("Base Relocation Table", &optional_header->DataDirectory[BASE_RELOCATION_TABLE_ENTRY]);
+        print_data_directory("Debug Data Table", &optional_header->DataDirectory[DEBUG_DATA_TABLE_ENTRY]);
+        print_data_directory("Architecture Table", &optional_header->DataDirectory[ARCHITECTURE_TABLE_ENTRY]);
+        print_data_directory("Global Pointer Table", &optional_header->DataDirectory[GLOBAL_POINTER_TABLE_ENTRY]);
+        print_data_directory("Thread Local Storage Table", &optional_header->DataDirectory[THREAD_LOCAL_STORAGE_TABLE_ENTRY]);
+        print_data_directory("Load Configuration Table", &optional_header->DataDirectory[LOAD_CONFIGURATION_TABLE_ENTRY]);
+        print_data_directory("Bound Import Table", &optional_header->DataDirectory[BOUND_IMPORT_TABLE_ENTRY]);
+        print_data_directory("Import Address Table", &optional_header->DataDirectory[IMPORT_ADDRESS_TABLE_ENTRY]);
+        print_data_directory("Delay Import Descriptor Table", &optional_header->DataDirectory[DELAY_IMPORT_DESCRIPTOR_ENTRY]);
+        print_data_directory("Com Runtime Header", &optional_header->DataDirectory[COM_RUNTIME_HEADER_ENTRY]);
+    }
+
     // TODO(TeYo): Maybe print the data directories as well
 }
 
@@ -399,8 +425,9 @@ static void parse_import_functions(const char* data,
         
         // print
         printf("func name: %s : ", by_name->Name);
-        printf("ptr: %" PRIx64 "\n", import_file_offset + ptr - import_virtual_address);
-
+        printf("ptr: %" PRIx64 " : ", import_file_offset + ptr - import_virtual_address);
+        printf("ptr (raw): %" PRIx64 "\n", ptr);
+        printf("test: %" PRIx64 "\n", (uint64_t)read_ptr + import_virtual_address);
 
         // name
         char* name = (*out_dll_info).function_names[function_count];
@@ -429,7 +456,14 @@ static void print_import_descriptor(IMAGE_IMPORT_DESCRIPTOR* descriptor, const c
             import_file_offset + descriptor->FirstThunk - import_virtual_address);
 }
 
-static ImportInfo* parse_import_data(const char* import_raw_data, unsigned int data_length, unsigned int import_virtual_address, unsigned int import_file_offset) {
+static ImportInfo* parse_import_data(const char* import_raw_data, 
+        unsigned int data_length, 
+        unsigned int import_virtual_address, 
+        unsigned int import_file_offset,
+        const char* text_raw_data,
+        unsigned int text_virtual_address,
+        unsigned int text_file_offset,
+        unsigned int entry_point_rva) {
     const unsigned int MAX_DESCRIPTOR_COUNT = 8;
     const unsigned int MAX_FUNCTION_NAME_COUNT = 128;
     const unsigned int MAX_NAME_LENGTH = 512;
@@ -455,9 +489,6 @@ static ImportInfo* parse_import_data(const char* import_raw_data, unsigned int d
         print_import_descriptor(&descriptors[i], import_raw_data + descriptors[i].Name - import_virtual_address, import_virtual_address, import_file_offset);
         
         parse_import_functions(import_raw_data, data_length, import_virtual_address, import_file_offset, descriptors[i].FirstThunk, &import_info->dll_infos[i]);
-    }
-
-    for (unsigned int i = 0; i < descriptor_count; i++) {
     }
 
     return import_info;
@@ -515,7 +546,14 @@ ExeInfo* exe_get_info(const char* filename) {
     find_section(fd, header_end_offset, "idata", nt_header->OptionalHeader.FileAlignment,&import_section, &raw_import_file_offset, &raw_import_data);
     fclose(fd);
 
-    ImportInfo* import_info = parse_import_data(raw_import_data, import_section->SizeOfRawData, import_section->VirtualAddress, raw_import_file_offset);
+    ImportInfo* import_info = parse_import_data(raw_import_data, 
+            import_section->SizeOfRawData, 
+            import_section->VirtualAddress, 
+            raw_import_file_offset,
+            raw_text_code,
+            text_section->VirtualAddress,
+            raw_text_file_offset,
+            nt_header->OptionalHeader.AddressOfEntryPoint);
 
     ExeInfo* info = malloc(sizeof(ExeInfo));
     info->dos_header = dos_header;
