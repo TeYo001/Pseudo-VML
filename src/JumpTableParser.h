@@ -13,6 +13,7 @@ typedef struct __attribute__((__packed__)) {
 typedef struct {
     DllInfo* from_dll;
     unsigned int function_index;
+    uint64_t jump_address;
 } JumpFunction;
 
 typedef struct {
@@ -24,3 +25,4 @@ typedef struct {
 JumpTable* build_jump_table(unsigned int max_jump_function_count);
 void free_jump_table(JumpTable* jump_table);
 JumpTable* parse_jump_table(ExeInfo* exe_info, AsmParserState* asm_state, unsigned int max_jump_function_count);
+void print_jump_table(JumpTable* jump_table);
