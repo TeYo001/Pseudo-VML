@@ -7,6 +7,7 @@
 #include "stdio.h"
 #include "stdlib.h"
 #include "assert.h"
+#include "string.h"
 
 /*
 #ifdef _WIN32
@@ -108,6 +109,72 @@ void print_asm_instruction(AsmParserState* asm_state, unsigned int index, unsign
     }
 }
 
+JumpFunction* find_printf_jump_func(JumpTable* jump_table) {
+    for (unsigned int i = 0; i < jump_table->jump_function_count; i++) {
+        JumpFunction* func = &jump_table->jump_functions[i];
+        if (strcmp(func->from_dll->function_names[func->function_index], "fprintf") == 0) {
+            return func;
+        }
+    }
+    return NULL;
+}
+
+JumpFunction* find_jump_func(JumpTable* jump_table, const char* func_name) {
+    for (unsigned int i = 0; i < jump_table->jump_function_count; i++) {
+        JumpFunction* func = &jump_table->jump_functions[i];
+        if (strcmp(func->from_dll->function_names[func->function_index], func_name) == 0) {
+            return func;
+        }
+    }
+    return NULL;
+}
+
+unsigned int find_printf_call(AsmParserState* asm_state, JumpFunction* printf_jump_func) {
+    for (unsigned int i = 0; i < asm_state->decoded_instructions_count; i++) {
+        xed_decoded_inst_t* inst = &asm_state->decoded_instructions[i];
+        unsigned int ptr = asm_state->binary_instruction_pointers[i];
+        xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
+        if (iclass == XED_ICLASS_CALL_NEAR) {
+            uint8_t opcode = *(uint8_t*)(asm_state->binary_instructions + ptr);
+            if (opcode == 0xe8) {
+                int32_t disp32 = *(int32_t*)(asm_state->binary_instructions + ptr + 1);
+                unsigned int length_bytes = asm_state->instruction_lengths[i];
+                int32_t target_va = ptr + length_bytes + disp32;
+                if (target_va == printf_jump_func->jump_address) {
+                    return i;
+                }
+            }
+        }
+    }
+
+    printf("ERROR: Couldn't find printf call\n");
+    exit(1);
+    return 0;
+}
+
+void find_all_calls_to(AsmParserState* asm_state, JumpTable* jump_table, const char* func_name) {
+    JumpFunction* jump_func = find_jump_func(jump_table, func_name);
+    if (jump_func == NULL) {
+        printf("ERROR: There is no such function within the jump table\n");
+        exit(1);
+    }
+
+    for (unsigned int i = 0; i < asm_state->decoded_instructions_count; i++) {
+        xed_decoded_inst_t* inst = &asm_state->decoded_instructions[i];
+        unsigned int ptr = asm_state->binary_instruction_pointers[i];
+        xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
+        uint8_t opcode = *(uint8_t*)(asm_state->binary_instructions + ptr);
+        if (iclass == XED_ICLASS_CALL_NEAR && opcode == 0xe8) {
+            int32_t disp32 = *(int32_t*)(asm_state->binary_instructions + ptr + 1);
+            unsigned int length_bytes = asm_state->instruction_lengths[i];
+            int32_t target_va = ptr + length_bytes + disp32;
+            if (target_va == jump_func->jump_address) {
+                printf("\'%s\' call %u: 0x%" PRIx32 "\n", func_name, i, asm_state->text_file_offset + target_va);
+            } 
+        }
+    }
+}
+
 int main() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
@@ -115,42 +182,38 @@ int main() {
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
     get_all_info_from_exe(
-            "test/hello64_small.exe", 
-            "test/temp_small.bin", 
-            "test/objdump_small.asm", 
+            "test/simple64.exe", 
+            "test/temp_simple.bin", 
+            "test/objdump_simple.asm", 
             MAX_INSTRUCTION_COUNT,
             MAX_JUMP_FUNCTION_COUNT,
             &exe_info, 
             &asm_state,
             &jump_table);
 
-    printf(".text file offset: 0x%x\n", exe_info->raw_text_file_offset);
-    printf(".import file offset: 0x%x\n", exe_info->raw_import_file_offset);
+    print_jump_table(jump_table);
 
-    unsigned int iat_rva = exe_info->nt_header->OptionalHeader.DataDirectory[IMPORT_ADDRESS_TABLE_ENTRY].VirtualAddress;
+    find_all_calls_to(asm_state, jump_table, "fprintf");
+    find_all_calls_to(asm_state, jump_table, "fputs");
+
     return 0;
-
-    printf("count: %u\n", asm_state->decoded_instructions_count);
-
     for (int i = 0; i < asm_state->decoded_instructions_count; i++) {
         xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(&asm_state->decoded_instructions[i]);
         if (iclass == XED_ICLASS_SYSCALL) {
             printf("syscall: %d\n", i);
         } else if (iclass == XED_ICLASS_SYSCALL_32) {
             printf("syscall 32: %d\n", i);
-        } 
-        else if (iclass == XED_ICLASS_CALL_NEAR) {
-            printf("call %d: ", i);
+        } else if (iclass == XED_ICLASS_CALL_NEAR) {
             if (i > 800) {
                 break;
             }
+            printf("call %d: ", i);
             print_asm_instruction(asm_state, i, exe_info->nt_header->OptionalHeader.AddressOfEntryPoint);
             //print_asm_instruction(asm_state, i);
         } else if (iclass == XED_ICLASS_CALL_FAR) {
             printf("call far %d: ", i);
             print_asm_instruction(asm_state, i, exe_info->nt_header->OptionalHeader.AddressOfEntryPoint);
-        }
-        else {
+        } else {
             // printf("other %d: %s\n", i, xed_iclass_enum_t2str(iclass));
         }
     }

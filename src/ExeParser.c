@@ -288,6 +288,9 @@ typedef struct _IMAGE_SECTION_HEADER {
 
 static void print_section_header(const IMAGE_SECTION_HEADER* section_header) {
     printf("### SECTION HEADER ###:\n");
+    if (section_header->Name[0] == '\0') {
+        printf("test: %s\n", section_header->Name + 1);
+    }
     printf(" - Name: \"%s\"\n", section_header->Name);
     printf(" - PhysicalAddress / VirtualSize: %" PRIu32 "\n", section_header->Misc.PhysicalAddress);
     printf(" - VirtualAddress: %" PRIu32 "\n", section_header->VirtualAddress);
@@ -405,6 +408,7 @@ static void parse_import_functions(const char* data,
     const unsigned int MAX_FUNCTION_COUNT = 128;
 
     (*out_dll_info).function_names = malloc(sizeof(char*) * MAX_FUNCTION_COUNT);
+    (*out_dll_info).function_pointers = malloc(sizeof(ULONGLONG) * MAX_FUNCTION_COUNT);
     (*out_dll_info).hints = malloc(sizeof(WORD) * MAX_FUNCTION_COUNT);
 
     while (read_ptr < data_length) {
@@ -418,23 +422,21 @@ static void parse_import_functions(const char* data,
         }
 
         IMAGE_IMPORT_BY_NAME* by_name = (void*)(data + ptr - import_virtual_address);
-        unsigned int name_length = 0;
-        while (by_name->Name[name_length] == '\0') {
-            name_length++;
-        }
+        unsigned int name_length = strlen(by_name->Name);
         
         // print
+        /*
         printf("func name: %s : ", by_name->Name);
         printf("ptr: %" PRIx64 " : ", import_file_offset + ptr - import_virtual_address);
         printf("ptr (raw): %" PRIx64 "\n", ptr);
         printf("test: %" PRIx64 "\n", (uint64_t)read_ptr + import_virtual_address);
+        */
 
         // name
-        char* name = (*out_dll_info).function_names[function_count];
-        name = malloc(name_length);
-        memcpy(name, by_name->Name, name_length);
-
-        // pointer (file offset pointer)
+        char* name = malloc(name_length + 1);
+        memcpy(name, by_name->Name, name_length + 1);
+        (*out_dll_info).function_names[function_count] = name;
+        (*out_dll_info).function_pointers[function_count] = (uint64_t)read_ptr + import_virtual_address;
         (*out_dll_info).hints[function_count] = by_name->Hint;
 
         read_ptr += sizeof(ULONGLONG);
@@ -479,6 +481,7 @@ static ImportInfo* parse_import_data(const char* import_raw_data,
     fclose(fd);
 
     parse_import_descriptors(import_raw_data, data_length, &descriptors, &descriptor_count);
+    import_info->dll_info_count = descriptor_count;
 
     if (descriptor_count >= MAX_DESCRIPTOR_COUNT) {
         printf("ERROR: Too many dll descriptors\n");
@@ -487,11 +490,45 @@ static ImportInfo* parse_import_data(const char* import_raw_data,
 
     for (unsigned int i = 0; i < descriptor_count; i++) {
         print_import_descriptor(&descriptors[i], import_raw_data + descriptors[i].Name - import_virtual_address, import_virtual_address, import_file_offset);
-        
+        const char* name = import_raw_data + descriptors[i].Name - import_virtual_address;
+        import_info->dll_infos[i].name = malloc(sizeof(char) * MAX_NAME_LENGTH);
+        memcpy(import_info->dll_infos[i].name, name, strlen(name) + 1); 
         parse_import_functions(import_raw_data, data_length, import_virtual_address, import_file_offset, descriptors[i].FirstThunk, &import_info->dll_infos[i]);
     }
 
     return import_info;
+}
+
+static void find_all_sections(FILE* fd, 
+        unsigned int header_end_offset, 
+        unsigned int section_count,
+        unsigned int file_alignment,
+        IMAGE_SECTION_HEADER*** out_section_header_list) {
+    IMAGE_SECTION_HEADER** section_header_list = malloc(sizeof(void*) * section_count);
+    IMAGE_SECTION_HEADER* current_section_header;
+    unsigned int read_ptr = header_end_offset + 1;
+    for (int i = 0; i < section_count; i++) {
+        current_section_header = malloc(sizeof(IMAGE_SECTION_HEADER));
+        fseek(fd, read_ptr, SEEK_SET);
+        fgets((char*)current_section_header, sizeof(IMAGE_SECTION_HEADER), fd);
+        section_header_list[i] = current_section_header;
+        //print_section_header(current_section_header);
+        read_ptr += SECTION_TABLE_ENTRY_SIZE;
+    }
+    (*out_section_header_list) = section_header_list;
+}
+
+static IMAGE_SECTION_HEADER* get_section(BYTE section_name[IMAGE_SIZEOF_SHORT_NAME], FILE* fd, IMAGE_SECTION_HEADER** all_sections, unsigned int section_count, unsigned int* raw_file_offset, char** raw_data) {
+    for (unsigned int i = 0; i < section_count; i++) {
+        if (memcmp(section_name, all_sections[i]->Name, IMAGE_SIZEOF_SHORT_NAME) == 0) {
+            IMAGE_SECTION_HEADER* header = all_sections[i];
+            char* raw_data = malloc(header->SizeOfRawData);
+            fseek(fd, header->PointerToRawData, SEEK_SET);
+            fread(raw_data, header->SizeOfRawData, 1, fd);
+            //unsigned int part_count = (*out_section)->SizeOfRawData / file_alignment;
+            // TODO(TeYo): Continue from here
+        }
+    }
 }
 
 void free_exe_info(ExeInfo* exe_info) {
@@ -528,22 +565,24 @@ ExeInfo* exe_get_info(const char* filename) {
     FILE* fd = fopen(filename, "rb");
     IMAGE_DOS_HEADER* dos_header = malloc(sizeof(IMAGE_DOS_HEADER));
     IMAGE_NT_HEADERS64* nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
-    IMAGE_SECTION_HEADER* text_section = malloc(sizeof(IMAGE_SECTION_HEADER));
     char* raw_text_code;
     unsigned int raw_text_file_offset;
-    IMAGE_SECTION_HEADER* import_section = malloc(sizeof(IMAGE_SECTION_HEADER));
     char* raw_import_data;
     unsigned int raw_import_file_offset;
     unsigned int header_end_offset;
+    IMAGE_SECTION_HEADER** section_header_list;
 
     fgets((char*)dos_header, sizeof(IMAGE_DOS_HEADER), fd);
     print_dos_header(dos_header);
     fseek(fd, dos_header->e_lfanew, SEEK_SET);
     fgets((char*)nt_header, sizeof(IMAGE_NT_HEADERS64), fd);
+
     header_end_offset = ftell(fd);
     print_nt_header(nt_header);
-    find_section(fd, header_end_offset, "text", nt_header->OptionalHeader.FileAlignment, &text_section, &raw_text_file_offset, &raw_text_code);
-    find_section(fd, header_end_offset, "idata", nt_header->OptionalHeader.FileAlignment,&import_section, &raw_import_file_offset, &raw_import_data);
+    find_all_sections(fd, header_end_offset, nt_header->FileHeader.NumberOfSections, nt_header->OptionalHeader.FileAlignment, &section_header_list);
+
+    //find_section(fd, header_end_offset, "text", nt_header->OptionalHeader.FileAlignment, &text_section, &raw_text_file_offset, &raw_text_code);
+    //find_section(fd, header_end_offset, "idata", nt_header->OptionalHeader.FileAlignment,&import_section, &raw_import_file_offset, &raw_import_data);
     fclose(fd);
 
     ImportInfo* import_info = parse_import_data(raw_import_data, 
@@ -562,6 +601,7 @@ ExeInfo* exe_get_info(const char* filename) {
     info->raw_text_code = raw_text_code;
     info->raw_text_file_offset = raw_text_file_offset;
     info->import_section = import_section;
+    info->all_sections = section_header_list;
     info->raw_import_data = raw_import_data;
     info->raw_import_file_offset = raw_import_file_offset;
     info->import_info = import_info;

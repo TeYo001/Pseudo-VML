@@ -62,6 +62,8 @@ typedef char CHAR;
 #define VALID_JUMP_ENTRY_RM_BYTE 0x25
 #define VALID_JUMP_ENTRY_PADDING 0x9090
 
+#define SECTION_TABLE_ENTRY_SIZE 40
+
 typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
     WORD   e_magic;                     // Magic number
     WORD   e_cblp;                      // Bytes on last page of file
@@ -260,6 +262,7 @@ typedef struct {
     char* raw_text_code;
     unsigned int raw_text_file_offset;
     IMAGE_SECTION_HEADER* import_section;
+    IMAGE_SECTION_HEADER** all_sections;
     char* raw_import_data;
     unsigned int raw_import_file_offset;
     ImportInfo* import_info;
