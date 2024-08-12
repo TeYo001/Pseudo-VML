@@ -2,6 +2,7 @@
 #include "ElfParser.h"
 #include "AsmParser.h"
 #include "JumpTableParser.h"
+#include "ExeEditor.h"
 #include "../lib/xed/includes/xed-interface.h"
 #include "stdbool.h"
 #include "stdio.h"
@@ -175,6 +176,15 @@ void find_all_calls_to(AsmParserState* asm_state, JumpTable* jump_table, const c
     }
 }
 
+void read_file(FILE* fd, unsigned int file_size, char** out_data) {
+    unsigned int part_count = file_size / 4096;
+    unsigned int rest = file_size - part_count * 4096;
+    fread(*out_data, 4096, part_count, fd);
+    if (rest != 0) {
+        fread(*out_data + part_count * 4096, rest, 1, fd);
+    }
+}
+
 int main() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
@@ -196,41 +206,16 @@ int main() {
     find_all_calls_to(asm_state, jump_table, "fprintf");
     find_all_calls_to(asm_state, jump_table, "fputs");
 
-    return 0;
-    for (int i = 0; i < asm_state->decoded_instructions_count; i++) {
-        xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(&asm_state->decoded_instructions[i]);
-        if (iclass == XED_ICLASS_SYSCALL) {
-            printf("syscall: %d\n", i);
-        } else if (iclass == XED_ICLASS_SYSCALL_32) {
-            printf("syscall 32: %d\n", i);
-        } else if (iclass == XED_ICLASS_CALL_NEAR) {
-            if (i > 800) {
-                break;
-            }
-            printf("call %d: ", i);
-            print_asm_instruction(asm_state, i, exe_info->nt_header->OptionalHeader.AddressOfEntryPoint);
-            //print_asm_instruction(asm_state, i);
-        } else if (iclass == XED_ICLASS_CALL_FAR) {
-            printf("call far %d: ", i);
-            print_asm_instruction(asm_state, i, exe_info->nt_header->OptionalHeader.AddressOfEntryPoint);
-        } else {
-            // printf("other %d: %s\n", i, xed_iclass_enum_t2str(iclass));
-        }
-    }
-
-    /*
-    AsmParserState* asm_state = build_asm_parser_state("test/temp.bin", 4096);
-    parse_asm(asm_state);
-
-    printf("count: %u\n", asm_state->decoded_instructions_count);
-
-    for (int i = 0; i < asm_state->decoded_instructions_count; i++) {
-        xed_decoded_inst_t* instruction = &asm_state->decoded_instructions[i];
-        printf("%d: %s\n", i, xed_iclass_enum_t2str(xed_decoded_inst_get_iclass(instruction)));
-    }
-
-    printf("SUCCCESS!\n");
-    */
+    FILE* fd = fopen("test/simple64.exe", "r");
+    char* data = malloc(exe_info->file_size);
+    read_file(fd, exe_info->file_size, &data);
+    ModTable* mod_table = build_mod_table(data, exe_info->file_size, 8, 8, 8);
+    IMAGE_SECTION_HEADER* new_header = malloc(sizeof(IMAGE_SECTION_HEADER));
+    char* section_data = "Hello World";
+    BYTE* section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
+    make_section_name(".pvml", &section_name);
+    section_push_back(exe_info, fd, mod_table, NULL, NULL);
+    fclose(fd);
 
     return 0;
 }

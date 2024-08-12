@@ -4,6 +4,7 @@
 #include "stdbool.h"
 #include "string.h"
 #include "sys/stat.h"
+#include "math.h"
 
 /*
 
@@ -296,7 +297,12 @@ static void print_section_header(const IMAGE_SECTION_HEADER* section_header) {
     printf(" - PointerToLinenumbers: %" PRIu32 "\n", section_header->PointerToLinenumbers);
     printf(" - NumberOfRelocations: %" PRIu16 "\n", section_header->NumberOfRelocations);
     printf(" - NumberOfLinenumbers: %" PRIu16 "\n", section_header->NumberOfLinenumbers);
-    printf(" - Characteristics: TODO\n");
+    printf(" - ### CHARACTERISTICS ###:\n");
+    // NOTE(TeYo): This is some fine ass pointer arithmatic if I've even seen one
+    uint8_t align_byte = *((uint8_t*)&section_header->Characteristics + 2); 
+    unsigned int alignment = 1 << (((unsigned int)align_byte / 16) - 1);
+    printf("  - Alignment: %u\n", alignment);
+    // TODO(TeYo): Continue from here
 }
 
 static void disassemble_raw_text_code(const char* raw_text_code, 
@@ -541,7 +547,7 @@ static IMAGE_SECTION_HEADER* get_section(BYTE section_name[IMAGE_SIZEOF_SHORT_NA
     return NULL;
 }
 
-void make_section_name(const char* section_name, BYTE** out_name) {
+static void make_section_name(const char* section_name, BYTE** out_name) {
     unsigned int length = strlen(section_name);
     if (length >= IMAGE_SIZEOF_SHORT_NAME) {
         printf("ERROR: Section name is too large to be made\n");
@@ -597,6 +603,13 @@ ExeInfo* exe_get_info(const char* filename) {
     unsigned int header_end_offset;
     IMAGE_SECTION_HEADER** section_header_list;
 
+    unsigned int file_size = 0;
+    {
+        struct stat file_stats = {0};
+        stat(filename, &file_stats);
+        file_size = file_stats.st_size;
+    }
+
     fgets((char*)dos_header, sizeof(IMAGE_DOS_HEADER), fd);
     print_dos_header(dos_header);
     fseek(fd, dos_header->e_lfanew, SEEK_SET);
@@ -633,6 +646,7 @@ ExeInfo* exe_get_info(const char* filename) {
     info->raw_import_file_offset = raw_import_file_offset;
     info->import_info = import_info;
     info->end_of_header_offset = header_end_offset;
+    info->file_size = file_size;
     return info;
 }
 
