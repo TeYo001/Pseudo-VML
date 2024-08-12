@@ -266,6 +266,7 @@ typedef struct {
     char* raw_import_data;
     unsigned int raw_import_file_offset;
     ImportInfo* import_info;
+    unsigned int end_of_header_offset;
 } ExeInfo;
 
 void free_exe_info(ExeInfo* exe_info);

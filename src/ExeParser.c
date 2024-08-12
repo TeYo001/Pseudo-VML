@@ -225,8 +225,6 @@ static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header
     if (optional_header->NumberOfRvaAndSizes != IMAGE_NUMBEROF_DIRECTORY_ENTRIES) {
         printf("The amount of directory entries listed is not the same number that this program was compiled for.");
         exit(1);
-        // TODO(TeYo): Maybe specify the actual numbers
-        // TODO(TeYo): Also maybe parse the Directory entries differently?
     }
     else {
         printf("  - NumberOfRvaAndSizes: VALID\n");
@@ -250,8 +248,6 @@ static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header
         print_data_directory("Delay Import Descriptor Table", &optional_header->DataDirectory[DELAY_IMPORT_DESCRIPTOR_ENTRY]);
         print_data_directory("Com Runtime Header", &optional_header->DataDirectory[COM_RUNTIME_HEADER_ENTRY]);
     }
-
-    // TODO(TeYo): Maybe print the data directories as well
 }
 
 static void print_nt_header(const IMAGE_NT_HEADERS64* nt_header) {
@@ -518,25 +514,52 @@ static void find_all_sections(FILE* fd,
     (*out_section_header_list) = section_header_list;
 }
 
-static IMAGE_SECTION_HEADER* get_section(BYTE section_name[IMAGE_SIZEOF_SHORT_NAME], FILE* fd, IMAGE_SECTION_HEADER** all_sections, unsigned int section_count, unsigned int* raw_file_offset, char** raw_data) {
+static IMAGE_SECTION_HEADER* get_section(BYTE section_name[IMAGE_SIZEOF_SHORT_NAME], 
+        FILE* fd, 
+        IMAGE_SECTION_HEADER** all_sections, 
+        unsigned int section_count,
+        unsigned int file_alignment, 
+        unsigned int* out_raw_file_offset, 
+        char** out_raw_data) {
     for (unsigned int i = 0; i < section_count; i++) {
-        if (memcmp(section_name, all_sections[i]->Name, IMAGE_SIZEOF_SHORT_NAME) == 0) {
-            IMAGE_SECTION_HEADER* header = all_sections[i];
-            char* raw_data = malloc(header->SizeOfRawData);
-            fseek(fd, header->PointerToRawData, SEEK_SET);
-            fread(raw_data, header->SizeOfRawData, 1, fd);
-            //unsigned int part_count = (*out_section)->SizeOfRawData / file_alignment;
-            // TODO(TeYo): Continue from here
+        if (memcmp(section_name, all_sections[i]->Name, IMAGE_SIZEOF_SHORT_NAME) != 0) {
+            continue;
         }
+        IMAGE_SECTION_HEADER* header = all_sections[i];
+        char* raw_data = malloc(header->SizeOfRawData);
+        fseek(fd, header->PointerToRawData, SEEK_SET);
+        *out_raw_file_offset = ftell(fd);
+        unsigned int part_count = header->SizeOfRawData / file_alignment;
+        if (fread(raw_data, file_alignment, part_count, fd) != part_count) {
+            printf("ERROR: Couldn't read section data\n");
+            exit(1);
+        }
+        *out_raw_data = raw_data;
+        return header;
+    }
+
+    return NULL;
+}
+
+void make_section_name(const char* section_name, BYTE** out_name) {
+    unsigned int length = strlen(section_name);
+    if (length >= IMAGE_SIZEOF_SHORT_NAME) {
+        printf("ERROR: Section name is too large to be made\n");
+        exit(1);
+    }
+    for (unsigned int i = 0; i < length; i++) {
+        (*out_name)[i] = section_name[i];
     }
 }
 
 void free_exe_info(ExeInfo* exe_info) {
+    for (unsigned int i = 0; i < exe_info->nt_header->FileHeader.NumberOfSections; i++) {
+        free(exe_info->all_sections[i]);
+    }
+    free(exe_info->all_sections);
     free(exe_info->dos_header);
     free(exe_info->nt_header);
-    free(exe_info->text_section);
     free(exe_info->raw_text_code);
-    free(exe_info->import_section);
     free(exe_info->raw_import_data);
     free_import_info(exe_info->import_info);
     free(exe_info);
@@ -565,8 +588,10 @@ ExeInfo* exe_get_info(const char* filename) {
     FILE* fd = fopen(filename, "rb");
     IMAGE_DOS_HEADER* dos_header = malloc(sizeof(IMAGE_DOS_HEADER));
     IMAGE_NT_HEADERS64* nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
+    IMAGE_SECTION_HEADER* text_section;
     char* raw_text_code;
     unsigned int raw_text_file_offset;
+    IMAGE_SECTION_HEADER* import_section;
     char* raw_import_data;
     unsigned int raw_import_file_offset;
     unsigned int header_end_offset;
@@ -576,13 +601,15 @@ ExeInfo* exe_get_info(const char* filename) {
     print_dos_header(dos_header);
     fseek(fd, dos_header->e_lfanew, SEEK_SET);
     fgets((char*)nt_header, sizeof(IMAGE_NT_HEADERS64), fd);
-
     header_end_offset = ftell(fd);
     print_nt_header(nt_header);
     find_all_sections(fd, header_end_offset, nt_header->FileHeader.NumberOfSections, nt_header->OptionalHeader.FileAlignment, &section_header_list);
-
-    //find_section(fd, header_end_offset, "text", nt_header->OptionalHeader.FileAlignment, &text_section, &raw_text_file_offset, &raw_text_code);
-    //find_section(fd, header_end_offset, "idata", nt_header->OptionalHeader.FileAlignment,&import_section, &raw_import_file_offset, &raw_import_data);
+    BYTE* text_section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
+    BYTE* import_section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
+    make_section_name(".text", (BYTE**)&text_section_name);
+    make_section_name(".idata", (BYTE**)&import_section_name);
+    text_section = get_section(text_section_name, fd, section_header_list, nt_header->FileHeader.NumberOfSections, nt_header->OptionalHeader.FileAlignment, &raw_text_file_offset, &raw_text_code);
+    import_section = get_section(import_section_name, fd, section_header_list, nt_header->FileHeader.NumberOfSections, nt_header->OptionalHeader.FileAlignment, &raw_import_file_offset, &raw_import_data);
     fclose(fd);
 
     ImportInfo* import_info = parse_import_data(raw_import_data, 
@@ -605,6 +632,7 @@ ExeInfo* exe_get_info(const char* filename) {
     info->raw_import_data = raw_import_data;
     info->raw_import_file_offset = raw_import_file_offset;
     info->import_info = import_info;
+    info->end_of_header_offset = header_end_offset;
     return info;
 }
 
