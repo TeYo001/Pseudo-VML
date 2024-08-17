@@ -2,6 +2,7 @@
 
 #include "ExeParser.h"
 #include "stdio.h"
+#include "stdbool.h"
 
 typedef struct {
     unsigned int file_offset;
@@ -42,6 +43,13 @@ void add_mod_entry_replace(ModTable* mod_table, unsigned int file_offset, char* 
 void free_mod_table(ModTable* mod_table);
 void use_mod_table(ModTable* mod_table, FILE* fd);
 
+typedef struct {
+    const char* name;
+    char* data;
+    unsigned int data_size;
+    DWORD characteristics;
+} SectionBuildInfo;
+
 /*
 typedef struct _IMAGE_SECTION_HEADER {
     BYTE    Name[IMAGE_SIZEOF_SHORT_NAME];
@@ -60,5 +68,12 @@ typedef struct _IMAGE_SECTION_HEADER {
 } IMAGE_SECTION_HEADER, *PIMAGE_SECTION_HEADER;
 */
 
-IMAGE_SECTION_HEADER* build_section_header(const char* name, unsigned int file_offset, unsigned int raw_data_file_offset, DWORD Characteristics);
-void section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, IMAGE_SECTION_HEADER* new_header, char* new_data);
+unsigned int align_up(unsigned int ptr, unsigned int alignment);
+
+bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, SectionBuildInfo* new_section, bool force);
+void section_replace(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, unsigned int section_index, SectionBuildInfo* new_section);
+
+//bool get_new_section_placement(ExeInfo* exe_info, const char* exe_filename, unsigned int* out_section_header_file_offset, unsigned int* out_raw_data_file_offset);
+//IMAGE_SECTION_HEADER* build_section_header(const char* name, unsigned int file_offset, unsigned int raw_data_file_offset, DWORD Characteristics);
+//void section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, IMAGE_SECTION_HEADER* new_header, char* new_data);
+//void section_replace(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, unsigned int header_index, IMAGE_SECTION_HEADER* new_header, char* new_data);

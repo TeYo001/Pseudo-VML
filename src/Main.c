@@ -176,6 +176,12 @@ void find_all_calls_to(AsmParserState* asm_state, JumpTable* jump_table, const c
     }
 }
 
+void zero_init(char* data, unsigned int size) {
+    for (unsigned int i = 0; i < size; i++) {
+        data[i] = '\0';
+    }
+}
+
 void read_file(FILE* fd, unsigned int file_size, char** out_data) {
     unsigned int part_count = file_size / 4096;
     unsigned int rest = file_size - part_count * 4096;
@@ -210,12 +216,20 @@ int main() {
     char* data = malloc(exe_info->file_size);
     read_file(fd, exe_info->file_size, &data);
     ModTable* mod_table = build_mod_table(data, exe_info->file_size, 8, 8, 8);
-    IMAGE_SECTION_HEADER* new_header = malloc(sizeof(IMAGE_SECTION_HEADER));
-    char* section_data = "Hello World";
-    BYTE* section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
-    make_section_name(".pvml", &section_name);
-    section_push_back(exe_info, fd, mod_table, NULL, NULL);
+    char* new_raw_data = malloc(128);
+    memcpy(new_raw_data, "Hello World", strlen("Hello World") + 1);
+    SectionBuildInfo new_section = {
+        .name = ".pvml",
+        .data = new_raw_data,
+        .data_size = 128,
+        .characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA
+    };
+    if (!section_push_back(exe_info, fd, mod_table, &new_section, false)) {
+        printf("no good\n");
+    }
     fclose(fd);
+    fopen("test/modified64.exe", "w");
+    use_mod_table(mod_table, fd);
 
     return 0;
 }

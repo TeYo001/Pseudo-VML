@@ -283,6 +283,26 @@ typedef struct _IMAGE_SECTION_HEADER {
 
 */
 
+/*
+#define IMAGE_SCN_CNT_CODE                   0x00000020  // Section contains code.
+#define IMAGE_SCN_CNT_INITIALIZED_DATA       0x00000040  // Section contains initialized data.
+#define IMAGE_SCN_CNT_UNINITIALIZED_DATA     0x00000080  // Section contains uninitialized data.
+#define IMAGE_SCN_LNK_INFO                   0x00000200  // Section contains comments or some other type of information.
+#define IMAGE_SCN_LNK_REMOVE                 0x00000800  // Section contents will not become part of image.
+#define IMAGE_SCN_LNK_COMDAT                 0x00001000  // Section contents comdat.
+#define IMAGE_SCN_NO_DEFER_SPEC_EXC          0x00004000  // Reset speculative exceptions handling bits in the TLB entries for this section.
+#define IMAGE_SCN_GPREL                      0x00008000  // Section content can be accessed relative to GP
+#define IMAGE_SCN_LNK_NRELOC_OVFL            0x01000000  // Section contains extended relocations.
+#define IMAGE_SCN_MEM_DISCARDABLE            0x02000000  // Section can be discarded.
+#define IMAGE_SCN_MEM_NOT_CACHED             0x04000000  // Section is not cachable.
+#define IMAGE_SCN_MEM_NOT_PAGED              0x08000000  // Section is not pageable.
+#define IMAGE_SCN_MEM_SHARED                 0x10000000  // Section is shareable.
+#define IMAGE_SCN_MEM_EXECUTE                0x20000000  // Section is executable.
+#define IMAGE_SCN_MEM_READ                   0x40000000  // Section is readable.
+#define IMAGE_SCN_MEM_WRITE                  0x80000000  // Section is writeable.
+#define IMAGE_SCN_SCALE_INDEX                0x00000001  // Tls index is scaled
+*/
+
 static void print_section_header(const IMAGE_SECTION_HEADER* section_header) {
     printf("### SECTION HEADER ###:\n");
     if (section_header->Name[0] == '\0') {
@@ -299,10 +319,64 @@ static void print_section_header(const IMAGE_SECTION_HEADER* section_header) {
     printf(" - NumberOfLinenumbers: %" PRIu16 "\n", section_header->NumberOfLinenumbers);
     printf(" - ### CHARACTERISTICS ###:\n");
     // NOTE(TeYo): This is some fine ass pointer arithmatic if I've even seen one
-    uint8_t align_byte = *((uint8_t*)&section_header->Characteristics + 2); 
-    unsigned int alignment = 1 << (((unsigned int)align_byte / 16) - 1);
+    uint8_t align_byte = *((uint8_t*)&section_header->Characteristics + 2);
+    
+    unsigned int alignment = 16;
+    if (align_byte != 0) {
+        alignment = 1 << (((unsigned int)align_byte / 16) - 1);
+    }
     printf("  - Alignment: %u\n", alignment);
-    // TODO(TeYo): Continue from here
+    if (section_header->Characteristics & IMAGE_SCN_CNT_CODE) {
+        printf("  - Contains Code\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_CNT_INITIALIZED_DATA) {
+        printf("  - Contains Initialized Data\n");
+    }    
+    if (section_header->Characteristics & IMAGE_SCN_CNT_UNINITIALIZED_DATA) {
+        printf("  - Contains Uninitialized Data\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_LNK_INFO) {
+        printf("  - Contains Comments (and similar info)\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_LNK_REMOVE) {
+        printf("  - Section Contents Will Not Become Part of Image\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_LNK_COMDAT) {
+        printf("  - Section Contents ComDat\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_NO_DEFER_SPEC_EXC) {
+        printf("  - Reset Speculative Exceptions Handling bits\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_GPREL) {
+        printf("  - Section Contents Can Be Accesses Relative To GP\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_LNK_NRELOC_OVFL) {
+        printf("  - Contains Extented Relocations\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_DISCARDABLE) {
+        printf("  - Can Be Discarded\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_NOT_CACHED) {
+        printf("  - Not Cashable\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_NOT_PAGED) {
+        printf("  - Not Pageable\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_SHARED) {
+        printf("  - Sharable\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
+        printf("  - Executable\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_READ) {
+        printf("  - Readable\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_MEM_WRITE) {
+        printf("  - Writable\n");
+    }
+    if (section_header->Characteristics & IMAGE_SCN_SCALE_INDEX) {
+        printf("  - TLS Index Is Scaled\n");
+    }
 }
 
 static void disassemble_raw_text_code(const char* raw_text_code, 
@@ -624,6 +698,10 @@ ExeInfo* exe_get_info(const char* filename) {
     text_section = get_section(text_section_name, fd, section_header_list, nt_header->FileHeader.NumberOfSections, nt_header->OptionalHeader.FileAlignment, &raw_text_file_offset, &raw_text_code);
     import_section = get_section(import_section_name, fd, section_header_list, nt_header->FileHeader.NumberOfSections, nt_header->OptionalHeader.FileAlignment, &raw_import_file_offset, &raw_import_data);
     fclose(fd);
+
+    for (unsigned int i = 0; i < nt_header->FileHeader.NumberOfSections; i++) {
+        print_section_header(section_header_list[i]);
+    }
 
     ImportInfo* import_info = parse_import_data(raw_import_data, 
             import_section->SizeOfRawData, 
