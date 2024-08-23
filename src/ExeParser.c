@@ -204,9 +204,9 @@ static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header
     printf("  - SizeOfCode: %" PRIu32 "\n", optional_header->SizeOfCode);
     printf("  - SizeOfInitializedData: %" PRIu32 "\n", optional_header->SizeOfInitializedData);
     printf("  - SizeOfUninitializedData: %" PRIu32 "\n", optional_header->SizeOfUninitializedData);
-    printf("  - AddressOfEntryPoint: %" PRIu32 "\n", optional_header->AddressOfEntryPoint);
-    printf("  - BaseOfCode: %" PRIu32 "\n", optional_header->BaseOfCode);
-    printf("  - ImageBase (IRREVENANT... MOSTLY): %" PRIu64 "\n", optional_header->ImageBase);
+    printf("  - AddressOfEntryPoint: 0x%" PRIx32 "\n", optional_header->AddressOfEntryPoint);
+    printf("  - BaseOfCode: 0x%" PRIx32 "\n", optional_header->BaseOfCode);
+    printf("  - ImageBase : 0x%" PRIx64 "\n", optional_header->ImageBase);
     printf("  - SectionAlignment: %" PRIu32 "\n", optional_header->SectionAlignment);
     printf("  - FileAlignment: %" PRIu32 "\n", optional_header->FileAlignment);
     printf("  - OperatingSystemVersion: %" PRIu16 ".%" PRIu16 "\n", optional_header->MajorOperatingSystemVersion, optional_header->MinorOperatingSystemVersion);
@@ -309,10 +309,10 @@ static void print_section_header(const IMAGE_SECTION_HEADER* section_header) {
         printf("test: %s\n", section_header->Name + 1);
     }
     printf(" - Name: \"%s\"\n", section_header->Name);
-    printf(" - PhysicalAddress / VirtualSize: %" PRIu32 "\n", section_header->Misc.PhysicalAddress);
-    printf(" - VirtualAddress: %" PRIu32 "\n", section_header->VirtualAddress);
+    printf(" - PhysicalAddress / VirtualSize: 0x%" PRIx32 "\n", section_header->Misc.PhysicalAddress);
+    printf(" - VirtualAddress: 0x%" PRIx32 "\n", section_header->VirtualAddress);
     printf(" - SizeOfRawData: %" PRIu32 "\n", section_header->SizeOfRawData);
-    printf(" - PointerToRawData: %" PRIu32 "\n", section_header->PointerToRawData);
+    printf(" - PointerToRawData: 0x%" PRIx32 "\n", section_header->PointerToRawData);
     printf(" - PointerToRelocations: %" PRIu32 "\n", section_header->PointerToRelocations);
     printf(" - PointerToLinenumbers: %" PRIu32 "\n", section_header->PointerToLinenumbers);
     printf(" - NumberOfRelocations: %" PRIu16 "\n", section_header->NumberOfRelocations);
