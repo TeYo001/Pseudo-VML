@@ -46,6 +46,8 @@ bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, Section
     memcpy(padded_raw_data + front_padding_size, new_section->data, new_section->data_size);
     add_mod_entry_append(mod_table, exe_info->file_size, padded_raw_data, front_padding_size + new_header->SizeOfRawData);
 
+    printf("New section virtual address: 0x%" PRIx32 "\n", new_header->VirtualAddress);
+
     return true;
 }
 

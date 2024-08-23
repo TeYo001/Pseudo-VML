@@ -3,6 +3,7 @@
 #include "AsmParser.h"
 #include "JumpTableParser.h"
 #include "ExeEditor.h"
+#include "Instruction.h"
 #include "../lib/xed/includes/xed-interface.h"
 #include "stdbool.h"
 #include "stdio.h"
@@ -191,6 +192,30 @@ void read_file(FILE* fd, unsigned int file_size, char** out_data) {
     }
 }
 
+void print_hex(const char* data, unsigned int data_length) {
+    printf("0x");
+    for (unsigned int i = 0; i < data_length; i++) {
+        printf("%" PRIx8 " ", (uint8_t)data[i]);
+    }
+    printf("\n");
+}
+
+// NOTE(TeYo): YES! I found the formula after like 10 hours: disp32 = dest_sec_va - src_sec_va - ptr - 7
+
+void test_lea(unsigned int ptr, ExeInfo* exe_info) {
+    unsigned int dest_sec_va = exe_info->all_sections[2]->VirtualAddress;
+    unsigned int src_sec_va = exe_info->all_sections[0]->VirtualAddress;
+    unsigned int dest_sec_fo = exe_info->all_sections[2]->PointerToRawData;
+    unsigned int src_sec_fo = exe_info->all_sections[0]->PointerToRawData;
+    unsigned int dest_va = dest_sec_va + 0x200;
+    unsigned int dest_fo = 0x2200;
+    unsigned int src_va = exe_info->text_section->VirtualAddress + ptr;
+
+    // 0x2200 - 0x1825 = 0x9db
+    int disp32 = dest_sec_va - src_sec_va - ptr - 7;
+    printf("disp32: 0x%" PRIx32 "\n", disp32);
+}
+
 int main() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
@@ -211,6 +236,7 @@ int main() {
 
     find_all_calls_to(asm_state, jump_table, "fprintf");
     find_all_calls_to(asm_state, jump_table, "fputs");
+    // 1738 lea
 
     FILE* fd = fopen("test/simple64.exe", "r");
     char* data = malloc(exe_info->file_size);
@@ -222,14 +248,28 @@ int main() {
         .name = ".pvml",
         .data = new_raw_data,
         .data_size = 128,
-        .characteristics = IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA
+        .characteristics = exe_info->all_sections[2]->Characteristics //IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA
     };
     if (!section_push_back(exe_info, fd, mod_table, &new_section, false)) {
         printf("no good\n");
     }
     fclose(fd);
-    fopen("test/modified64.exe", "w");
+    fd = fopen("test/modified64.exe", "w");
     use_mod_table(mod_table, fd);
+    fclose(fd);
+
+    {
+        //exe_info = exe_get_info("test/modified64.exe");
+        unsigned int ptr = asm_state->binary_instruction_pointers[1738];
+        unsigned int ptr_abs = exe_info->raw_text_file_offset + ptr;
+        InstructionInfo* lea_info = build_lea(exe_info, ptr_abs, REG_RCX, exe_info->nt_header->FileHeader.NumberOfSections - 1, 0x49000); // TODO(TeYo): Continue from here
+        printf("old lea (len: %u): ", asm_state->instruction_lengths[1738]);
+        print_hex((const char*)(asm_state->binary_instructions + ptr), asm_state->instruction_lengths[1738]);
+        test_lea(ptr, exe_info);
+        printf("new lea (len: %u): ", lea_info->data_length);
+        print_hex(lea_info->raw_data, lea_info->data_length);
+    }
+
 
     return 0;
 }

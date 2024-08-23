@@ -42,3 +42,4 @@ void free_mod_table(ModTable* mod_table);
 void use_mod_table(ModTable* mod_table, FILE* fd);
 
 unsigned int align_up(unsigned int ptr, unsigned int alignment);
+unsigned int follow_disp32(unsigned int end_of_current_inst_offset, unsigned int disp32);

@@ -113,7 +113,7 @@ int main(int argc, char** argv)
         "src/JumpTableParser",
         "src/ExeEditor",
         "src/FileEditor",
-        "src/InstructionConstructor"
+        "src/Instruction"
     };
     
     if (mainCmd == JUST_RUN || mainCmd == JUST_DEBUG) goto run_skip;
