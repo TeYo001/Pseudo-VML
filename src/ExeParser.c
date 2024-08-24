@@ -215,7 +215,7 @@ static void print_optional_header(const IMAGE_OPTIONAL_HEADER64* optional_header
     printf("  - Win32VersionValue: %" PRIu32 "\n", optional_header->Win32VersionValue);
     printf("  - SizeOfImage: %" PRIu32 "\n", optional_header->SizeOfImage);
     printf("  - SizeOfHeaders: %" PRIu32 "\n", optional_header->SizeOfHeaders);
-    printf("  - Checksum: %" PRIu32 "\n", optional_header->CheckSum);
+    printf("  - Checksum: 0x%" PRIx32 "\n", optional_header->CheckSum);
     printf("  - Subsystem: %" PRIu16 "\n", optional_header->Subsystem); // TODO(TeYo): Make better
     printf("  - DllCharacteristics: TODO\n"); // TODO(TeYo): Actually finish this part
     printf("  - SizeOfStackReserve: %" PRIu64 "\n", optional_header->SizeOfStackReserve);

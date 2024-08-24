@@ -45,5 +45,4 @@ void print_modrm(uint8_t mod_rm);
 
 void add_instruction(ModTable* mod_table, InstructionInfo* instruction);
 InstructionInfo* build_jump_near(unsigned int instruction_file_offset, unsigned int location_file_offset);
-InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_file_offset, Register destination_register, unsigned int destination_section_index,
-        unsigned int destination_file_offset);
+InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_file_offset, Register destination_register, unsigned int destination_virtual_address);

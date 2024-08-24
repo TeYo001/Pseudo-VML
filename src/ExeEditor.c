@@ -6,7 +6,7 @@
 
 
 
-bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, SectionBuildInfo* new_section, bool force) {
+bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, SectionBuildInfo* new_section, bool force, IMAGE_SECTION_HEADER** out_section_header) {
     fseek(fd, exe_info->end_of_header_offset + 1 + (exe_info->nt_header->FileHeader.NumberOfSections) * SECTION_TABLE_ENTRY_SIZE, SEEK_SET);
     unsigned int zero_count = 1;
     {
@@ -22,20 +22,22 @@ bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, Section
 
     IMAGE_SECTION_HEADER* new_header = calloc(1, sizeof(IMAGE_SECTION_HEADER));
     memcpy(new_header->Name, new_section->name, strlen(new_section->name) + 1);
-    new_header->Misc.VirtualSize = new_section->data_size;
+    new_header->Misc.VirtualSize = align_up(new_section->data_size, exe_info->nt_header->OptionalHeader.SectionAlignment);
     new_header->SizeOfRawData = align_up(new_section->data_size, exe_info->nt_header->OptionalHeader.FileAlignment);
     new_header->Characteristics = new_section->characteristics;
-    new_header->PointerToRawData = align_up(exe_info->file_size, exe_info->nt_header->OptionalHeader.SectionAlignment);
-    
+    new_header->PointerToRawData = align_up(exe_info->file_size, exe_info->nt_header->OptionalHeader.FileAlignment);
+
     // TODO(TeYo): Replace this with something more proper (also fix the hardcoded values like damn)
     IMAGE_SECTION_HEADER* last_header = exe_info->all_sections[exe_info->nt_header->FileHeader.NumberOfSections - 1];
-    new_header->VirtualAddress = align_up(last_header->VirtualAddress + last_header->Misc.VirtualSize, 16);
+    new_header->VirtualAddress = align_up(last_header->VirtualAddress + last_header->Misc.VirtualSize, 
+            exe_info->nt_header->OptionalHeader.SectionAlignment);
     
     IMAGE_NT_HEADERS64* new_nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
     memcpy(new_nt_header, exe_info->nt_header, sizeof(IMAGE_NT_HEADERS64));
     new_nt_header->OptionalHeader.SizeOfImage = align_up(new_header->VirtualAddress + new_header->Misc.VirtualSize,
             exe_info->nt_header->OptionalHeader.SectionAlignment);
-    
+    new_nt_header->FileHeader.NumberOfSections += 1;
+
     add_mod_entry_replace(mod_table, exe_info->dos_header->e_lfanew, (char*)new_nt_header, sizeof(IMAGE_NT_HEADERS64));
     add_mod_entry_replace(mod_table, 
             exe_info->end_of_header_offset + 1 + (exe_info->nt_header->FileHeader.NumberOfSections) * SECTION_TABLE_ENTRY_SIZE,
@@ -44,10 +46,11 @@ bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, Section
     unsigned int front_padding_size = new_header->PointerToRawData - exe_info->file_size;
     char* padded_raw_data = calloc(1, front_padding_size + new_header->SizeOfRawData);
     memcpy(padded_raw_data + front_padding_size, new_section->data, new_section->data_size);
-    add_mod_entry_append(mod_table, exe_info->file_size, padded_raw_data, front_padding_size + new_header->SizeOfRawData);
+    add_mod_entry_append(mod_table, exe_info->file_size - 1, padded_raw_data, front_padding_size + new_header->SizeOfRawData);
 
     printf("New section virtual address: 0x%" PRIx32 "\n", new_header->VirtualAddress);
 
+    *out_section_header = new_header;
     return true;
 }
 
@@ -106,9 +109,82 @@ void section_replace(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, unsigned 
     }
 }
 
+// NOTE(TeYo): This is the algorith i based the caclculate checksum function on
+/*
+uint32_t pe_header_checksum(uint32_t* base, off_t size) {
+  uint32_t sum=0;
+  off_t i;
+  for(i=0;i<(size/4);i++) {
+    if(i==0x36) continue;
+    sum+=__builtin_uadd_overflow(base[i],sum,&sum);
+  }
+  if(size%4) sum+=base[i];
+  sum=(sum&0xffff)+(sum>>16);
+  sum+=(sum>>16);
+  sum&=0xffff;
+  return(sum+size);
+}
+*/
 
+DWORD calculate_checksum(FILE* fd, unsigned int file_size) {
+    unsigned int part_count = file_size / 4096;
+    unsigned int rest = file_size - part_count * 4096;
+    char* data = malloc(file_size);
+    fread(data, 4096, part_count, fd);
+    if (rest != 0) {
+        fread(data + part_count * 4096, rest, 1, fd);
+    }
+    uint32_t* base = (uint32_t*)data;
+    off_t size = file_size;
 
+    uint32_t sum=0;
+    off_t i;
+    for(i=0;i<(size/4);i++) {
+        if(i==0x36) continue;
+        sum+=__builtin_uadd_overflow(base[i],sum,&sum);
+    }
+    if(size%4) sum+=base[i];
+    sum=(sum&0xffff)+(sum>>16);
+    sum+=(sum>>16);
+    sum&=0xffff;
+    return(sum+size); 
 
+    // NOTE(TeYo): My version of this algorithm didnt work so I just stole the actual algorithm
+    /*
+    const unsigned int CHECKSUM_INDEX = 0x36;
+    unsigned int part_count = file_size / 4096;
+    unsigned int rest = file_size - part_count * 4096;
+    char* data = malloc(file_size);
+    fread(data, 4096, part_count, fd);
+    if (rest != 0) {
+        fread(data + part_count * 4096, rest, 1, fd);
+    }
+    DWORD checksum = 0;
+    for (unsigned int i = 0; i < file_size / 4; i++) {
+        if (i == CHECKSUM_INDEX) {
+            continue;
+        }
+        checksum += __builtin_uadd_overflow(((DWORD*)data)[i], checksum, &checksum);
+    }
+    if (file_size % 4 != 0) {
+        checksum += ((DWORD*)data)[file_size / 4 - 1];
+    }
+    checksum = (checksum & 0xffff) + (checksum >> 16);
+    checksum += (checksum >> 16);
+    checksum &= 0xffff;
+    checksum += file_size;
+    return checksum;
+    */
+}
+
+void fix_checksum(const char* filename, ModTable* mod_table) {
+    unsigned int file_size = get_file_size(filename);
+    FILE* fd = fopen(filename, "r");
+    DWORD* checksum = malloc(sizeof(DWORD));
+    *checksum = calculate_checksum(fd, file_size);
+    add_mod_entry_replace(mod_table, 0x36 * 4, (char*)&checksum, sizeof(DWORD));
+    fclose(fd);
+}
 
 
 

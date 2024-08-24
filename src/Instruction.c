@@ -36,7 +36,7 @@ InstructionInfo* build_jump_near(unsigned int instruction_file_offset, unsigned 
 }
 
 InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_file_offset, Register destination_register, 
-        unsigned int destination_section_index, unsigned int destination_file_offset) {
+        unsigned int destination_virtual_address) {
     // NOTE(TeYo): follow lea: target = inst_ptr_abs + 7 + disp32 - entry_point + size_of_optional_header
     // -disp32 = inst_ptr_abs + 7 - entry_point + size_of_optional_header - target
     // disp32 = target + entry_point - inst_ptr_abs - 7 - size_of_optional_header
@@ -59,9 +59,7 @@ InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_file_offs
 
     unsigned int inst_sec_va = exe_info->text_section->VirtualAddress;
     unsigned int inst_rva = instruction_file_offset - exe_info->raw_text_file_offset;
-    unsigned int dest_sec_va = exe_info->all_sections[destination_section_index]->VirtualAddress;
-    unsigned int dest_rva = destination_file_offset - exe_info->all_sections[destination_section_index]->PointerToRawData;
-    raw_data->rel32 = dest_sec_va + dest_rva - inst_sec_va - inst_rva;
+    raw_data->rel32 = destination_virtual_address - inst_sec_va - inst_rva;
     
     instruction->type = INST_TYPE_LEA;
     instruction->raw_data = (char*)raw_data;
