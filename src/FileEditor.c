@@ -2,6 +2,7 @@
 #include "stdlib.h"
 #include "stdbool.h"
 #include "string.h"
+#include "sys/stat.h"
 
 ModTable* build_mod_table(char* original_data, unsigned int original_data_size, 
         unsigned int append_entry_max_count, unsigned int remove_entry_max_count, unsigned int replace_entry_max_count) {
@@ -21,8 +22,10 @@ ModTable* build_mod_table(char* original_data, unsigned int original_data_size,
 }
 
 void free_mod_table(ModTable* mod_table) {
+    free(mod_table->replace_entries);
     free(mod_table->append_entries);
     free(mod_table->remove_entries);
+    free(mod_table);
 }
 
 void add_mod_entry_append(ModTable* mod_table, unsigned int file_offset, char* append_data, unsigned int data_size) {
@@ -59,6 +62,17 @@ void add_mod_entry_replace(ModTable* mod_table, unsigned int file_offset, char* 
     entry->data_size = data_size;
     mod_table->replace_entry_count++;
 
+}
+
+void clear_mod_table(ModTable* mod_table, char* new_original_data, unsigned int new_original_data_size) {
+    mod_table->replace_entry_count = 0;
+    mod_table->append_entry_count = 0;
+    mod_table->remove_entry_count = 0;
+    if (new_original_data != NULL) {
+        // NOTE(TeYo): Memory management is probably needed at some point
+        mod_table->original_data = new_original_data;
+        mod_table->original_data_size = new_original_data_size;
+    }
 }
 
 static void get_sorted_indices_append(ModTableEntry_Append* entries, unsigned int entry_count, unsigned int** out_sorted_indices) {
@@ -134,22 +148,11 @@ void use_mod_table(ModTable* mod_table, FILE* fd) {
     get_sorted_indices_append(mod_table->append_entries, mod_table->append_entry_count, &sorted_indices_append);
     get_sorted_indices_remove(mod_table->remove_entries, mod_table->remove_entry_count, &sorted_indices_remove);
 
+    memcpy(modified_data_replaced, mod_table->original_data, mod_table->original_data_size);
     for (unsigned int i = 0; i < mod_table->replace_entry_count; i++) {
         ModTableEntry_Replace* entry = &mod_table->replace_entries[i];
-        unsigned int write_size = entry->file_offset - current_read_pointer;
-        memcpy(modified_data_replaced + current_write_pointer, mod_table->original_data + current_read_pointer, write_size);
-        current_write_pointer += write_size;
-        current_read_pointer += write_size;
-        memcpy(modified_data_replaced + current_write_pointer, entry->replace_data, entry->data_size);
-        current_write_pointer += entry->data_size;
-        current_read_pointer += entry->data_size;
+        memcpy(modified_data_replaced + entry->file_offset, entry->replace_data, entry->data_size);
     }
-    {
-        unsigned int write_size = mod_table->original_data_size - current_read_pointer;
-        memcpy(modified_data_replaced + current_write_pointer, mod_table->original_data + current_read_pointer, write_size);
-    }
-    current_write_pointer = 0;
-    current_read_pointer = 0;
     for (unsigned int i = 0; i < mod_table->remove_entry_count; i++) {
         ModTableEntry_Remove* entry = &mod_table->remove_entries[sorted_indices_remove[i]];
         unsigned int write_size = entry->file_offset - current_read_pointer;
@@ -206,4 +209,10 @@ void use_mod_table(ModTable* mod_table, FILE* fd) {
 
 unsigned int align_up(unsigned int ptr, unsigned int alignment) {
     return ptr - (ptr % alignment) + alignment;
+}
+
+unsigned int get_file_size(const char* filename) {
+    struct stat file_stats = {0};
+    stat(filename, &file_stats);
+    return file_stats.st_size;
 }

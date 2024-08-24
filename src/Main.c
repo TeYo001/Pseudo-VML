@@ -20,22 +20,31 @@
 */
 
 void get_all_info_from_exe(const char* exe_filename, 
-        const char* binary_filename, 
-        const char* objdump_filename, 
         unsigned int max_instruction_count,
         unsigned int max_jump_function_count,
         ExeInfo** out_exe_info, 
         AsmParserState** out_asm_state,
         JumpTable** out_jump_table) {
+    char* binary_filename = malloc(strlen(exe_filename) - strlen(".exe") + strlen("_binary.bin") + 1);
+    char* objdump_complete_filename = malloc(strlen(exe_filename) - strlen(".exe") + strlen("_objdump_complete.asm") + 1);
+
+    memcpy(binary_filename, exe_filename, strlen(exe_filename) - strlen(".exe"));
+    memcpy(objdump_complete_filename, exe_filename, strlen(exe_filename) - strlen(".exe"));
+    memcpy(binary_filename + strlen(exe_filename) - strlen(".exe"), "_binary.bin", strlen("_binary.bin") + 1);
+    memcpy(objdump_complete_filename + strlen(exe_filename) - strlen(".exe"), "_objdump_complete.asm", strlen("_objdump_complete.asm") + 1);
+
+    printf("new bin: %s\n", binary_filename);
+    printf("new objdump: %s\n", objdump_complete_filename);
+
     ExeInfo* exe_info = exe_get_info(exe_filename);
     
     FILE* bin_fd = fopen(binary_filename, "w");
     fwrite(exe_info->raw_text_code, exe_info->text_section->SizeOfRawData, 1, bin_fd);
     fclose(bin_fd);
-
+    
     // objdump -b binary -m i386:x86-64 -D temp.bin > something.asm
     char* objdump_command_str = malloc(sizeof(char) * 512);
-    snprintf(objdump_command_str, 512, "objdump -b binary -m i386:x86-64 -D %s > %s", binary_filename, objdump_filename); // TODO(TeYo): filanames are not allowed to contain spaces
+    snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s", exe_filename, objdump_complete_filename); // TODO(TeYo): filanames are not allowed to contain spaces
     system(objdump_command_str);
 
     AsmParserState* asm_state = build_asm_parser_state(binary_filename, max_instruction_count, exe_info->raw_text_file_offset);
@@ -224,8 +233,6 @@ int main() {
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
     get_all_info_from_exe(
             "test/simple64.exe", 
-            "test/temp_simple.bin", 
-            "test/objdump_simple.asm", 
             MAX_INSTRUCTION_COUNT,
             MAX_JUMP_FUNCTION_COUNT,
             &exe_info, 
@@ -248,28 +255,50 @@ int main() {
         .name = ".pvml",
         .data = new_raw_data,
         .data_size = 128,
-        .characteristics = exe_info->all_sections[2]->Characteristics //IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA
+        .characteristics = IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA 
+            | IMAGE_SCN_CNT_UNINITIALIZED_DATA
     };
-    if (!section_push_back(exe_info, fd, mod_table, &new_section, false)) {
-        printf("no good\n");
+    IMAGE_SECTION_HEADER* new_header;
+    
+    // add new section
+    if (!section_push_back(exe_info, fd, mod_table, &new_section, false, &new_header)) {
+        printf("FATAL WARNING: Couldn't push back new section\n");
+        exit(1);
     }
+
+    // change puts data ptr instruction
+    {
+        IMAGE_SECTION_HEADER* rdata_header = exe_info->all_sections[2];
+        unsigned int ptr_abs = exe_info->raw_text_file_offset + asm_state->binary_instruction_pointers[1738];
+        InstructionInfo* lea_info = build_lea(exe_info, ptr_abs, REG_RCX, rdata_header->VirtualAddress);
+        printf("new lea (len: %u): ", lea_info->data_length);
+        print_hex(lea_info->raw_data, lea_info->data_length);
+        //add_instruction(mod_table, lea_info);
+    }
+
     fclose(fd);
     fd = fopen("test/modified64.exe", "w");
     use_mod_table(mod_table, fd);
     fclose(fd);
 
-    {
-        //exe_info = exe_get_info("test/modified64.exe");
-        unsigned int ptr = asm_state->binary_instruction_pointers[1738];
-        unsigned int ptr_abs = exe_info->raw_text_file_offset + ptr;
-        InstructionInfo* lea_info = build_lea(exe_info, ptr_abs, REG_RCX, exe_info->nt_header->FileHeader.NumberOfSections - 1, 0x49000); // TODO(TeYo): Continue from here
-        printf("old lea (len: %u): ", asm_state->instruction_lengths[1738]);
-        print_hex((const char*)(asm_state->binary_instructions + ptr), asm_state->instruction_lengths[1738]);
-        test_lea(ptr, exe_info);
-        printf("new lea (len: %u): ", lea_info->data_length);
-        print_hex(lea_info->raw_data, lea_info->data_length);
-    }
+    unsigned int new_file_size = get_file_size("test/modified64.exe");
+    fd = fopen("test/modified64.exe", "r");
+    char* new_data = malloc(new_file_size);
+    read_file(fd, new_file_size, &new_data);
+    clear_mod_table(mod_table, new_data, new_file_size);
+    fclose(fd);
+    fix_checksum("test/modified64.exe", mod_table);
+    fd = fopen("test/modified64.exe", "w");
+    use_mod_table(mod_table, fd);
+    fclose(fd);
 
+    char* objdump_command_str = malloc(sizeof(char) * 512);
+    snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s", 
+            "test/modified64.exe", "test/modified64_objdump_complete.asm");
+    system(objdump_command_str);
+    
+
+    
 
     return 0;
 }

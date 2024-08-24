@@ -10,7 +10,7 @@ typedef struct {
     const char* name;
     char* data;
     unsigned int data_size;
-    DWORD characteristics;
+    ULONGLONG characteristics;
 } SectionBuildInfo;
 
 /*
@@ -31,8 +31,12 @@ typedef struct _IMAGE_SECTION_HEADER {
 } IMAGE_SECTION_HEADER, *PIMAGE_SECTION_HEADER;
 */
 
-bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, SectionBuildInfo* new_section, bool force);
+bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, SectionBuildInfo* new_section, bool force, IMAGE_SECTION_HEADER** out_section_header);
 void section_replace(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, unsigned int section_index, SectionBuildInfo* new_section);
+DWORD calculate_checksum(FILE* fd, unsigned int file_size);
+// this function is the last thing you call on your file after you've applied all your modifications
+// don't forget to clear the mod_table before use
+void fix_checksum(const char* filename, ModTable* mod_table);
 
 //bool get_new_section_placement(ExeInfo* exe_info, const char* exe_filename, unsigned int* out_section_header_file_offset, unsigned int* out_raw_data_file_offset);
 //IMAGE_SECTION_HEADER* build_section_header(const char* name, unsigned int file_offset, unsigned int raw_data_file_offset, DWORD Characteristics);
