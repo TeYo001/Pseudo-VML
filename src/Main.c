@@ -130,16 +130,6 @@ JumpFunction* find_printf_jump_func(JumpTable* jump_table) {
     return NULL;
 }
 
-JumpFunction* find_jump_func(JumpTable* jump_table, const char* func_name) {
-    for (unsigned int i = 0; i < jump_table->jump_function_count; i++) {
-        JumpFunction* func = &jump_table->jump_functions[i];
-        if (strcmp(func->from_dll->function_names[func->function_index], func_name) == 0) {
-            return func;
-        }
-    }
-    return NULL;
-}
-
 unsigned int find_printf_call(AsmParserState* asm_state, JumpFunction* printf_jump_func) {
     for (unsigned int i = 0; i < asm_state->decoded_instructions_count; i++) {
         xed_decoded_inst_t* inst = &asm_state->decoded_instructions[i];
@@ -270,14 +260,32 @@ int main() {
 
     // change puts data ptr instruction
     {
-        IMAGE_SECTION_HEADER* rdata_header = exe_info->all_sections[2];
-        IMAGE_SECTION_HEADER* data_header = exe_info->all_sections[1];
         unsigned int ptr = asm_state->binary_instruction_pointers[1738];
-        InstructionInfo* lea_info = build_lea(exe_info, ptr, REG_RCX, new_header->VirtualAddress);
+        InstructionInfo* lea_info = build_lea(exe_info->text_section, ptr, REG_RCX, new_header->VirtualAddress);
 
         printf("new lea (len: %u): ", lea_info->data_length);
         print_hex(lea_info->raw_data, lea_info->data_length);
         add_instruction(mod_table, lea_info);
+    }
+
+    // change call to jump instruction
+    {
+        unsigned int ptr = asm_state->binary_instruction_pointers[1740];
+        InstructionInfo* lea_info = build_jump_near(exe_info->text_section, ptr, new_header->); // TODO(TeYo): Continue from here
+
+        printf("new lea (len: %u): ", lea_info->data_length);
+        print_hex(lea_info->raw_data, lea_info->data_length);
+        add_instruction(mod_table, lea_info);
+    }
+
+    // compare function calls
+    {
+        unsigned int ptr = asm_state->binary_instruction_pointers[1740];
+        InstructionInfo* call_info = build_call_near_to_jump_func_name(exe_info->text_section, ptr, jump_table, exe_info->text_section, "abort");
+        printf("old call (len: %u): ", asm_state->instruction_lengths[1740]);
+        print_hex((char*)(asm_state->binary_instructions + ptr), call_info->data_length);
+        printf("new call (len: %u): ", call_info->data_length);
+        print_hex(call_info->raw_data, call_info->data_length);
     }
 
     fclose(fd);
@@ -286,8 +294,6 @@ int main() {
     fclose(fd);
 
     unsigned int new_file_size = get_file_size("test/modified64.exe");
-    printf("old file size: %u\n", exe_info->file_size);
-    printf("new file size: %u\n", new_file_size);
     fd = fopen("test/modified64.exe", "r");
     char* new_data = malloc(new_file_size);
     read_file(fd, new_file_size, &new_data);

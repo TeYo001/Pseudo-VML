@@ -2,12 +2,14 @@
 
 #include "FileEditor.h"
 #include "ExeParser.h"
+#include "JumpTableParser.h"
 #include "inttypes.h"
 
 typedef enum {
     INST_TYPE_NONE,
     INST_TYPE_JUMP_NEAR,
     INST_TYPE_LEA,
+    INST_TYPE_CALL_NEAR,
 } InstructionType;
 
 typedef enum {
@@ -40,9 +42,17 @@ typedef struct __attribute__((__packed__)) {
     int32_t rel32;
 } Instruction_Lea;
 
+typedef struct __attribute__((__packed__)) {
+    uint8_t opcode;
+    int32_t rel32;
+} Instruction_CallNear;
+
 uint8_t build_modrm(uint8_t mod, uint8_t reg_op, uint8_t rm);
 void print_modrm(uint8_t mod_rm);
 
 void add_instruction(ModTable* mod_table, InstructionInfo* instruction);
-InstructionInfo* build_jump_near(unsigned int instruction_file_offset, unsigned int location_file_offset);
-InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_rva, Register destination_register, unsigned int destination_virtual_address);
+InstructionInfo* build_jump_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int destination_virtual_address);
+InstructionInfo* build_lea(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, Register destination_register, unsigned int destination_virtual_address);
+InstructionInfo* build_call_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int function_virtual_address);
+InstructionInfo* build_call_near_to_jump_func_name(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, 
+        JumpTable* jump_table, IMAGE_SECTION_HEADER* jump_func_header, const char* jump_func_name);
