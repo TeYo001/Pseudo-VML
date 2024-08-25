@@ -4,8 +4,6 @@
 #include "stdbool.h"
 #include "sys/stat.h"
 
-
-
 bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, SectionBuildInfo* new_section, bool force, IMAGE_SECTION_HEADER** out_section_header) {
     fseek(fd, exe_info->end_of_header_offset + 1 + (exe_info->nt_header->FileHeader.NumberOfSections) * SECTION_TABLE_ENTRY_SIZE, SEEK_SET);
     unsigned int zero_count = 1;
@@ -46,7 +44,7 @@ bool section_push_back(ExeInfo* exe_info, FILE* fd, ModTable* mod_table, Section
     unsigned int front_padding_size = new_header->PointerToRawData - exe_info->file_size;
     char* padded_raw_data = calloc(1, front_padding_size + new_header->SizeOfRawData);
     memcpy(padded_raw_data + front_padding_size, new_section->data, new_section->data_size);
-    add_mod_entry_append(mod_table, exe_info->file_size - 1, padded_raw_data, front_padding_size + new_header->SizeOfRawData);
+    add_mod_entry_append(mod_table, exe_info->file_size, padded_raw_data, front_padding_size + new_header->SizeOfRawData);
 
     printf("New section virtual address: 0x%" PRIx32 "\n", new_header->VirtualAddress);
 
@@ -182,12 +180,9 @@ void fix_checksum(const char* filename, ModTable* mod_table) {
     FILE* fd = fopen(filename, "r");
     DWORD* checksum = malloc(sizeof(DWORD));
     *checksum = calculate_checksum(fd, file_size);
-    add_mod_entry_replace(mod_table, 0x36 * 4, (char*)&checksum, sizeof(DWORD));
+    add_mod_entry_replace(mod_table, 0x36 * 4, (char*)checksum, sizeof(DWORD));
     fclose(fd);
 }
-
-
-
 
 
 

@@ -245,12 +245,14 @@ int main() {
     find_all_calls_to(asm_state, jump_table, "fputs");
     // 1738 lea
 
-    FILE* fd = fopen("test/simple64.exe", "r");
+
+    FILE* fd = fopen("test/simple64.exe", "r");   
+
     char* data = malloc(exe_info->file_size);
     read_file(fd, exe_info->file_size, &data);
     ModTable* mod_table = build_mod_table(data, exe_info->file_size, 8, 8, 8);
     char* new_raw_data = malloc(128);
-    memcpy(new_raw_data, "Hello World", strlen("Hello World") + 1);
+    memcpy(new_raw_data, "Hello Torbjorn\n", strlen("Hello Torbjorn\n") + 1);
     SectionBuildInfo new_section = {
         .name = ".pvml",
         .data = new_raw_data,
@@ -269,11 +271,13 @@ int main() {
     // change puts data ptr instruction
     {
         IMAGE_SECTION_HEADER* rdata_header = exe_info->all_sections[2];
-        unsigned int ptr_abs = exe_info->raw_text_file_offset + asm_state->binary_instruction_pointers[1738];
-        InstructionInfo* lea_info = build_lea(exe_info, ptr_abs, REG_RCX, rdata_header->VirtualAddress);
+        IMAGE_SECTION_HEADER* data_header = exe_info->all_sections[1];
+        unsigned int ptr = asm_state->binary_instruction_pointers[1738];
+        InstructionInfo* lea_info = build_lea(exe_info, ptr, REG_RCX, new_header->VirtualAddress);
+
         printf("new lea (len: %u): ", lea_info->data_length);
         print_hex(lea_info->raw_data, lea_info->data_length);
-        //add_instruction(mod_table, lea_info);
+        add_instruction(mod_table, lea_info);
     }
 
     fclose(fd);
@@ -282,6 +286,8 @@ int main() {
     fclose(fd);
 
     unsigned int new_file_size = get_file_size("test/modified64.exe");
+    printf("old file size: %u\n", exe_info->file_size);
+    printf("new file size: %u\n", new_file_size);
     fd = fopen("test/modified64.exe", "r");
     char* new_data = malloc(new_file_size);
     read_file(fd, new_file_size, &new_data);
@@ -293,7 +299,7 @@ int main() {
     fclose(fd);
 
     char* objdump_command_str = malloc(sizeof(char) * 512);
-    snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s", 
+    snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s",
             "test/modified64.exe", "test/modified64_objdump_complete.asm");
     system(objdump_command_str);
     
