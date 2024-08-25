@@ -17,7 +17,7 @@ void print_modrm(uint8_t mod_rm) {
 }
 
 void add_instruction(ModTable* mod_table, InstructionInfo* instruction) {
-    add_mod_entry_append(mod_table, instruction->instruction_file_offset, instruction->raw_data, instruction->data_length);
+    add_mod_entry_replace(mod_table, instruction->instruction_file_offset, instruction->raw_data, instruction->data_length);
 }
 
 InstructionInfo* build_jump_near(unsigned int instruction_file_offset, unsigned int location_file_offset) {
@@ -35,12 +35,8 @@ InstructionInfo* build_jump_near(unsigned int instruction_file_offset, unsigned 
     return instruction;
 }
 
-InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_file_offset, Register destination_register, 
+InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_rva, Register destination_register, 
         unsigned int destination_virtual_address) {
-    // NOTE(TeYo): follow lea: target = inst_ptr_abs + 7 + disp32 - entry_point + size_of_optional_header
-    // -disp32 = inst_ptr_abs + 7 - entry_point + size_of_optional_header - target
-    // disp32 = target + entry_point - inst_ptr_abs - 7 - size_of_optional_header
-
     InstructionInfo* instruction = malloc(sizeof(InstructionInfo));
     Instruction_Lea* raw_data = malloc(sizeof(Instruction_Lea));
     raw_data->prefix = 0x48;
@@ -57,14 +53,17 @@ InstructionInfo* build_lea(ExeInfo* exe_info, unsigned int instruction_file_offs
         exe_info->nt_header->FileHeader.SizeOfOptionalHeader;
     */
 
-    unsigned int inst_sec_va = exe_info->text_section->VirtualAddress;
-    unsigned int inst_rva = instruction_file_offset - exe_info->raw_text_file_offset;
-    raw_data->rel32 = destination_virtual_address - inst_sec_va - inst_rva;
-    
+    unsigned int inst_va = exe_info->text_section->VirtualAddress + instruction_rva + 7;
+    unsigned int inst_fo = exe_info->raw_text_file_offset + instruction_rva;
+    raw_data->rel32 = destination_virtual_address - inst_va;
+    printf("inst va: %" PRIx32 "\n", inst_va);
+    printf("dest va: %" PRIx32 "\n", destination_virtual_address);
+    printf("diff: %" PRIx32 "\n", destination_virtual_address - inst_va);
+
     instruction->type = INST_TYPE_LEA;
     instruction->raw_data = (char*)raw_data;
     instruction->data_length = sizeof(Instruction_Lea);
-    instruction->instruction_file_offset = instruction_file_offset;
+    instruction->instruction_file_offset = inst_fo;
     return instruction;
 }
 
