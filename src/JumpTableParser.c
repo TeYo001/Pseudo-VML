@@ -3,6 +3,7 @@
 #include "stdlib.h"
 #include "stdio.h"
 #include "stdbool.h"
+#include "string.h"
 
 JumpTable* build_jump_table(unsigned int max_jump_function_count) {
     JumpTable* jump_table = malloc(sizeof(JumpTable));
@@ -88,4 +89,14 @@ void print_jump_table(JumpTable* jump_table) {
                 func->function_index,
                 func->from_dll->name);
     }
+}
+
+JumpFunction* find_jump_func(JumpTable* jump_table, const char* func_name) {
+    for (unsigned int i = 0; i < jump_table->jump_function_count; i++) {
+        JumpFunction* func = &jump_table->jump_functions[i];
+        if (strcmp(func->from_dll->function_names[func->function_index], func_name) == 0) {
+            return func;
+        }
+    }
+    return NULL;
 }
