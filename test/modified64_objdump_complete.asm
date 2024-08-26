@@ -1952,9 +1952,9 @@ Disassembly of section .text:
    1400027c4:	e8 37 ee ff ff       	call   140001600 <__main>
    1400027c9:	b9 01 00 00 00       	mov    $0x1,%ecx
    1400027ce:	ff 15 8c 08 00 00    	call   *0x88c(%rip)        # 140003060 <__imp___acrt_iob_func>
-   1400027d4:	48 8d 0d 25 a8 04 00 	lea    0x4a825(%rip),%rcx        # 14004d000 <.debug_ranges+0xd10>
+   1400027d4:	48 8d 0d 25 18 00 00 	lea    0x1825(%rip),%rcx        # 140004000 <.rdata>
    1400027db:	48 89 c2             	mov    %rax,%rdx
-   1400027de:	e8 8d fe ff ff       	call   140002670 <fputs>
+   1400027de:	e9 1d f8 04 00       	jmp    140052000 <.debug_ranges+0x5d10>
    1400027e3:	31 c0                	xor    %eax,%eax
    1400027e5:	48 83 c4 28          	add    $0x28,%rsp
    1400027e9:	c3                   	ret    

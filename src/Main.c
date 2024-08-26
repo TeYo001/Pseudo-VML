@@ -200,6 +200,7 @@ void print_hex(const char* data, unsigned int data_length) {
 }
 
 // NOTE(TeYo): YES! I found the formula after like 10 hours: disp32 = dest_sec_va - src_sec_va - ptr - 7
+// NOTE(TeYo): Technically the above formula doesn't always work, the actual formula is just the virtual address of the instruction pointer minus the va of the destination
 
 void test_lea(unsigned int ptr, ExeInfo* exe_info) {
     unsigned int dest_sec_va = exe_info->all_sections[2]->VirtualAddress;
@@ -215,14 +216,17 @@ void test_lea(unsigned int ptr, ExeInfo* exe_info) {
     printf("disp32: 0x%" PRIx32 "\n", disp32);
 }
 
-int main() {
+/*
+void test_hello_torbjorn() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
     JumpTable* jump_table;
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
+    const char* EXECUTABLE_FILENAME = "test/stripped64.exe";
+    const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
     get_all_info_from_exe(
-            "test/simple64.exe", 
+            EXECUTABLE_FILENAME, 
             MAX_INSTRUCTION_COUNT,
             MAX_JUMP_FUNCTION_COUNT,
             &exe_info, 
@@ -233,10 +237,8 @@ int main() {
 
     find_all_calls_to(asm_state, jump_table, "fprintf");
     find_all_calls_to(asm_state, jump_table, "fputs");
-    // 1738 lea
 
-
-    FILE* fd = fopen("test/simple64.exe", "r");   
+    FILE* fd = fopen(EXECUTABLE_FILENAME, "r");
 
     char* data = malloc(exe_info->file_size);
     read_file(fd, exe_info->file_size, &data);
@@ -265,48 +267,122 @@ int main() {
 
         printf("new lea (len: %u): ", lea_info->data_length);
         print_hex(lea_info->raw_data, lea_info->data_length);
-        add_instruction(mod_table, lea_info);
-    }
-
-    // change call to jump instruction
-    {
-        unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        InstructionInfo* lea_info = build_jump_near(exe_info->text_section, ptr, new_header->); // TODO(TeYo): Continue from here
-
-        printf("new lea (len: %u): ", lea_info->data_length);
-        print_hex(lea_info->raw_data, lea_info->data_length);
-        add_instruction(mod_table, lea_info);
-    }
-
-    // compare function calls
-    {
-        unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        InstructionInfo* call_info = build_call_near_to_jump_func_name(exe_info->text_section, ptr, jump_table, exe_info->text_section, "abort");
-        printf("old call (len: %u): ", asm_state->instruction_lengths[1740]);
-        print_hex((char*)(asm_state->binary_instructions + ptr), call_info->data_length);
-        printf("new call (len: %u): ", call_info->data_length);
-        print_hex(call_info->raw_data, call_info->data_length);
+        //add_instruction(mod_table, lea_info);
     }
 
     fclose(fd);
-    fd = fopen("test/modified64.exe", "w");
+    fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "w");
     use_mod_table(mod_table, fd);
     fclose(fd);
 
-    unsigned int new_file_size = get_file_size("test/modified64.exe");
-    fd = fopen("test/modified64.exe", "r");
+    unsigned int new_file_size = get_file_size(MODIFIED_EXECUTABLE_FILENAME);
+    fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "r");
     char* new_data = malloc(new_file_size);
     read_file(fd, new_file_size, &new_data);
     clear_mod_table(mod_table, new_data, new_file_size);
     fclose(fd);
-    fix_checksum("test/modified64.exe", mod_table);
-    fd = fopen("test/modified64.exe", "w");
+    fix_checksum(MODIFIED_EXECUTABLE_FILENAME, mod_table);
+    fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "w");
     use_mod_table(mod_table, fd);
     fclose(fd);
 
     char* objdump_command_str = malloc(sizeof(char) * 512);
     snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s",
-            "test/modified64.exe", "test/modified64_objdump_complete.asm");
+            MODIFIED_EXECUTABLE_FILENAME, "test/modified64_objdump_complete.asm");
+    system(objdump_command_str);
+}
+*/
+
+int main() {
+    ExeInfo* exe_info;
+    AsmParserState* asm_state;
+    JumpTable* jump_table;
+    const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
+    const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
+    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 128;
+    const char* EXECUTABLE_FILENAME = "test/simple64.exe";
+    const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
+    get_all_info_from_exe(
+            EXECUTABLE_FILENAME, 
+            MAX_INSTRUCTION_COUNT,
+            MAX_JUMP_FUNCTION_COUNT,
+            &exe_info, 
+            &asm_state,
+            &jump_table);
+
+    print_jump_table(jump_table);
+
+    find_all_calls_to(asm_state, jump_table, "fputs");
+
+    FILE* fd = fopen(EXECUTABLE_FILENAME, "r");   
+
+    char* data = malloc(exe_info->file_size);
+    read_file(fd, exe_info->file_size, &data);
+    ModTable* mod_table = build_mod_table(data, exe_info->file_size, 8, 8, 8);
+
+    if (can_push_back_new_section(exe_info, fd)) {
+        printf("WARNING: Cannot safely push back new section, information might be overwritten\n");
+    }
+
+    char* new_raw_data = malloc(NEW_SECTION_RAW_DATA_SIZE);
+    SectionBuildInfo new_section = {
+        .name = ".pvml",
+        .data = new_raw_data,
+        .data_size = NEW_SECTION_RAW_DATA_SIZE,
+        .characteristics = IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA 
+            | IMAGE_SCN_CNT_UNINITIALIZED_DATA
+    };
+    IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 4, 4);
+    
+    // change call to jump instruction
+    {
+        unsigned int ptr = asm_state->binary_instruction_pointers[1740];
+        InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr, new_header->VirtualAddress);
+        printf("new jmp (len: %u): ", jmp_info->data_length);
+        print_hex(jmp_info->raw_data, jmp_info->data_length);
+        add_instruction(mod_table, jmp_info);
+    }
+
+    // add call instruction in new header
+    {
+        unsigned int ptr = 0;
+        InstructionInfo* call_info = build_call_near_to_jump_func_name(new_header, ptr, jump_table, exe_info->text_section, "fputs");
+        printf("new call (len: %u): ", call_info->data_length);
+        print_hex(call_info->raw_data, call_info->data_length);
+        add_instruction_to_buffer(new_raw_data, 0, call_info);
+    }
+
+    // add jmp back to text 
+    {
+        unsigned int ptr = sizeof(Instruction_CallNear);
+        unsigned int dest_va = exe_info->text_section->VirtualAddress + asm_state->binary_instruction_pointers[1741];
+        InstructionInfo* jmp_info = build_jump_near(new_header, ptr, dest_va);
+        printf("new jump (len: %u): ", jmp_info->data_length);
+        print_hex(jmp_info->raw_data, jmp_info->data_length);
+        add_instruction_to_buffer(new_raw_data, ptr, jmp_info);
+    }
+
+    section_push_back(exe_info, mod_table, &new_section, new_header);
+
+    fclose(fd);
+    fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "w");
+    use_mod_table(mod_table, fd);
+    fclose(fd);
+
+    unsigned int new_file_size = get_file_size(MODIFIED_EXECUTABLE_FILENAME);
+    fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "r");
+    char* new_data = malloc(new_file_size);
+    read_file(fd, new_file_size, &new_data);
+    clear_mod_table(mod_table, new_data, new_file_size);
+    fclose(fd);
+    fix_checksum(MODIFIED_EXECUTABLE_FILENAME, mod_table);
+    fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "w");
+    use_mod_table(mod_table, fd);
+    fclose(fd);
+
+    char* objdump_command_str = malloc(sizeof(char) * 512);
+    snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s",
+            MODIFIED_EXECUTABLE_FILENAME, "test/modified64_objdump_complete.asm");
     system(objdump_command_str);
     
 
