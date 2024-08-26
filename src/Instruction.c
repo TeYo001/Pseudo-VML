@@ -1,5 +1,6 @@
 #include "Instruction.h"
 #include "stdlib.h"
+#include "string.h"
 
 uint8_t build_modrm(uint8_t mod, uint8_t reg_op, uint8_t rm) {
     uint8_t res = 0;
@@ -18,6 +19,10 @@ void print_modrm(uint8_t mod_rm) {
 
 void add_instruction(ModTable* mod_table, InstructionInfo* instruction) {
     add_mod_entry_replace(mod_table, instruction->instruction_file_offset, instruction->raw_data, instruction->data_length);
+}
+
+void add_instruction_to_buffer(char* buffer, unsigned int buffer_offset, InstructionInfo* instruction) {
+    memcpy(buffer + buffer_offset, instruction->raw_data, instruction->data_length);
 }
 
 InstructionInfo* build_jump_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int destination_virtual_address) {

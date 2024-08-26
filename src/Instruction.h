@@ -51,6 +51,7 @@ uint8_t build_modrm(uint8_t mod, uint8_t reg_op, uint8_t rm);
 void print_modrm(uint8_t mod_rm);
 
 void add_instruction(ModTable* mod_table, InstructionInfo* instruction);
+void add_instruction_to_buffer(char* buffer, unsigned int buffer_offset, InstructionInfo* instruction);
 InstructionInfo* build_jump_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int destination_virtual_address);
 InstructionInfo* build_lea(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, Register destination_register, unsigned int destination_virtual_address);
 InstructionInfo* build_call_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int function_virtual_address);
