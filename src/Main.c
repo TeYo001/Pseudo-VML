@@ -4,6 +4,7 @@
 #include "JumpTableParser.h"
 #include "ExeEditor.h"
 #include "Instruction.h"
+#include "BuildPayload.h"
 #include "../lib/xed/includes/xed-interface.h"
 #include "stdbool.h"
 #include "stdio.h"
@@ -385,7 +386,26 @@ int main() {
             MODIFIED_EXECUTABLE_FILENAME, "test/modified64_objdump_complete.asm");
     system(objdump_command_str);
     
+    {
+        char* payload_buffer = malloc(4096);
+        unsigned int jump_func_name_count = 2;
+        const char* jump_func_names[] = {
+            "fputs",
+            "strlen"
+        };
+        unsigned int processor_count = 1;
+        const char* processor_source_files[] = {
+            "src/Processor.c"
+        };
+        unsigned int processor_return_addresses[] = {
+            0
+        };
 
+        //build_function_address_table(payload_buffer, 0, jump_table, jump_func_names, jump_func_name_count);
+
+        build_processors(payload_buffer, 0, processor_source_files, processor_return_addresses, processor_count);
+    }
+    
     
 
     return 0;

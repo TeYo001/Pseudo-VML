@@ -36,7 +36,7 @@ NOTE(TeYo): You probably want to know the x86 calling convention if you would wa
 
 typedef void FILE;
 
-void process(void* data, int (*fputs)(const char* str, FILE* fd)) {
+void process(void* data, void** function_address_table) {
     uint64_t rcx = *(uint64_t*)(data + ARG_RCX);
 
     return;

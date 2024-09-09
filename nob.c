@@ -104,7 +104,7 @@ int main(int argc, char** argv)
         }
     }
 
-    const unsigned int INCLUDE_FILES_COUNT = 8;
+    const unsigned int INCLUDE_FILES_COUNT = 9;
     const char* include_file_locations[] = {
         "src/Main",
         "src/ExeParser",
@@ -113,7 +113,8 @@ int main(int argc, char** argv)
         "src/JumpTableParser",
         "src/ExeEditor",
         "src/FileEditor",
-        "src/Instruction"
+        "src/Instruction",
+        "src/BuildPayload"
     };
     
     if (mainCmd == JUST_RUN || mainCmd == JUST_DEBUG) goto run_skip;
@@ -180,12 +181,22 @@ int main(int argc, char** argv)
         if (!nob_cmd_run_sync(cmd)) return 1;
     }
     
+    // Compile FetchKernel32Functions
+    {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
+        nob_cmd_append(&cmd, "-O1");
+        nob_cmd_append(&cmd, "-o", "build/FetchKernel32Functions.exe", "src/FetchKernel32Functions.c");
+        if (!nob_cmd_run_sync(cmd)) return 1;
+    }
+
     // Compile InstructionFetch
     {
         Nob_Cmd cmd = {0};
         nob_cmd_append(&cmd, "nasm");
         nob_cmd_append(&cmd, "-f", "bin");
         nob_cmd_append(&cmd, "src/FetchInstruction.asm", "-o", "build/FetchInstruction.bin");
+        //if (!nob_cmd_run_sync(cmd)) return 1;
     }
 
     // Compile Process
