@@ -216,3 +216,12 @@ unsigned int get_file_size(const char* filename) {
     stat(filename, &file_stats);
     return file_stats.st_size;
 }
+
+void read_file(FILE* fd, unsigned int file_size, char** out_data) {
+    unsigned int part_count = file_size / 4096;
+    unsigned int rest = file_size - part_count * 4096;
+    fread(*out_data, 4096, part_count, fd);
+    if (rest != 0) {
+        fread(*out_data + part_count * 4096, rest, 1, fd);
+    }
+}
