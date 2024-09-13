@@ -1,5 +1,5 @@
 #include "inttypes.h"
-
+#include "PayloadStructure.h"
 
 /*
 This function will get inserted into the executable.
@@ -7,8 +7,7 @@ This function is what you want to modify if to your individual needs (you can al
 NOTE(TeYo): You probably want to know the x86 calling convention if you would want to use this
 */
 
-/*
-
+/* STACK FORMATION
     push rcx
     push rdx
     push r8     
@@ -21,7 +20,6 @@ NOTE(TeYo): You probably want to know the x86 calling convention if you would wa
     movdqu  oword [esp], xmm2
     sub     esp, 16
     movdqu  oword [esp], xmm3
-
 */
 
 #define ARG_STACK_BEGIN 0
@@ -34,10 +32,26 @@ NOTE(TeYo): You probably want to know the x86 calling convention if you would wa
 #define ARG_XMM2 200
 #define ARG_XMM3 216
 
-typedef void FILE;
+#ifndef SECTION_VIRTUAL_ADDRESS
+#define SECTION_VIRTUAL_ADDRESS 0xDEADBEEF
+#endif
 
+typedef void FILE;
+typedef int fputs_functype(const char*, FILE*);
+
+int process_fputs(const char* str, FILE* stream) {
+    //fputs_functype* fputs = *(void**)(SECTION_VIRTUAL_ADDRESS + FUNCTION_ADDRESS_TABLE_PTR);
+    
+    // TODO(TeYo): Figure out how to do relative calls from c (probably through some inline assembly)
+
+    return 0;
+}
+
+
+/*
 void process(void* data, void** function_address_table) {
     uint64_t rcx = *(uint64_t*)(data + ARG_RCX);
 
     return;
 }
+*/

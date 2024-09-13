@@ -25,6 +25,11 @@ void add_instruction_to_buffer(char* buffer, unsigned int buffer_offset, Instruc
     memcpy(buffer + buffer_offset, instruction->raw_data, instruction->data_length);
 }
 
+void free_instruction(InstructionInfo* instruction) {
+    free(instruction->raw_data);
+    free(instruction);
+}
+
 InstructionInfo* build_jump_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int destination_virtual_address) {
     InstructionInfo* instruction = malloc(sizeof(InstructionInfo));
     Instruction_JumpNear* raw_data = malloc(sizeof(Instruction_JumpNear));

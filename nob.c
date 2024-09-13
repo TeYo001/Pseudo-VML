@@ -199,24 +199,6 @@ int main(int argc, char** argv)
         //if (!nob_cmd_run_sync(cmd)) return 1;
     }
 
-    // Compile Process
-    {
-        {
-            Nob_Cmd cmd = {0};
-            nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
-            nob_cmd_append(&cmd, "-O1");
-            nob_cmd_append(&cmd, "-c", "src/Process.c", "-o", "build/Process.o");
-            if (!nob_cmd_run_sync(cmd)) return 1;
-        }
-        
-        {
-            Nob_Cmd cmd = {0};
-            nob_cmd_append(&cmd, "objcopy");
-            nob_cmd_append(&cmd, "-O", "binary", "-j", ".text", "build/Process.o");
-            if (!nob_cmd_run_sync(cmd)) return 1;
-        }
-    }
-
 run_skip:
     if (mainCmd == RUN || mainCmd == JUST_RUN)
     {
