@@ -30,6 +30,9 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
         unsigned int processor_count,
         unsigned int** out_processor_entry_points);
 
+unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
+        IMAGE_SECTION_HEADER* payload_header, unsigned int processor_entry_point);
+
 // NOTE(TeYo): buffer offset is the start of the processor in the payload buffer
 unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_offset, unsigned int processor_size_bytes,
         IMAGE_SECTION_HEADER* payload_header, SignatureReplaceTable* sr_table);

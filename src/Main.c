@@ -462,6 +462,9 @@ int main() {
         unsigned int processors_size = build_processors(payload_buffer, PROCESSORS_BEGIN_PTR, 
                 new_header, sr_table, processor_source_files, processor_count, &processor_entry_points);
 
+        unsigned int pre_processor_size = build_pre_processor(payload_buffer, PRE_PROCESSOR_BEGIN_PTR,
+                new_header, processor_entry_points[0]);
+
         /*
         unsigned int process_ret_inst_rva = PROCESSORS_BEGIN_PTR;
         while ((uint8_t)payload_buffer[process_ret_inst_rva] != 0xc3 
@@ -477,9 +480,9 @@ int main() {
     // change call to jump instruction
     {
         unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        printf("testing: %" PRIx32 "\n", new_header->VirtualAddress + processor_entry_points[0] + 5);
+        printf("testing: %" PRIx32 "\n", new_header->VirtualAddress + PRE_PROCESSOR_BEGIN_PTR);
         InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr,
-                new_header->VirtualAddress + processor_entry_points[0] + 5);
+                new_header->VirtualAddress + processor_entry_points[0]);
         printf("new jmp (len: %u): ", jmp_info->data_length);
         print_hex(jmp_info->raw_data, jmp_info->data_length);
         add_instruction(mod_table, jmp_info);

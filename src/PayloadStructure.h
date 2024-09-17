@@ -2,7 +2,8 @@
 
 #define KERNEL32_INFORMATION_TABLE_PTR 0x0
 #define RETURN_TABLE_PTR 0x20
-#define PROCESSORS_BEGIN_PTR 0x100
+#define PRE_PROCESSOR_BEGIN_PTR 0x100
+#define PROCESSORS_BEGIN_PTR 0x200
 
 // the following defines are for use in after processing of the payload
 

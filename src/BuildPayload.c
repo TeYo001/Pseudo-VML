@@ -86,7 +86,7 @@ static unsigned int build_processor(char* payload_buffer, unsigned int buffer_of
     memcpy(binary_file, object_file, strlen(object_file) + 1);
     memcpy(object_file + strlen(object_file) - 2, ".o", strlen(".o") + 1);
     memcpy(binary_file + strlen(binary_file) - 2, ".bin", strlen(".bin") + 1);
-    snprintf(compile_command, SIZEOF_COMPILE_COMMAND, "x86_64-w64-mingw32-gcc -O1 -fPIE -D SECTION_VIRTUAL_ADDRESS=0x%" PRIx64 " -c %s -o %s", 
+    snprintf(compile_command, SIZEOF_COMPILE_COMMAND, "x86_64-w64-mingw32-gcc -O0 -fPIE -mabi=ms -D SECTION_VIRTUAL_ADDRESS=0x%" PRIx64 " -c %s -o %s", 
             section_va, source_file, object_file);
     printf("%s\n", compile_command);
     system(compile_command);
@@ -124,6 +124,32 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
         current_offset += processor_size;
     }
     return current_offset; 
+}
+
+unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
+        IMAGE_SECTION_HEADER* payload_header, unsigned int processor_entry_point) {
+    const char* pre_processor_filename = "src/FetchInstruction.asm";
+    const char* bin_filename = "build/FetchInstruction.bin";
+    const unsigned int max_instruction_length = 512;
+    char* buffer = payload_buffer + buffer_offset;
+    char* instruction = malloc(max_instruction_length);
+    snprintf(instruction, max_instruction_length, "nasm -f bin %s -o %s", pre_processor_filename, bin_filename);
+    system(instruction);
+    unsigned int file_size = get_file_size(bin_filename);
+    char* file_buffer = malloc(file_size + 4);
+    FILE* fd = fopen(bin_filename, "r");
+    read_file(fd, file_size, &file_buffer);
+    unsigned int process_insert_point = file_size - 1;
+    while ((uint8_t)file_buffer[process_insert_point] != 0xc3) {
+        process_insert_point--;
+    }
+    // TODO(TeYo): perhaps change this to a jump far so that the segment things arent all fucked
+    InstructionInfo* inst = build_jump_near(payload_header, 
+            buffer_offset + process_insert_point, payload_header->VirtualAddress + processor_entry_point);
+    add_instruction_to_buffer(file_buffer, process_insert_point, inst);
+    memcpy(buffer, file_buffer, file_size + 4);
+
+    return file_size;
 }
 
 unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_offset, unsigned int processor_size_bytes,

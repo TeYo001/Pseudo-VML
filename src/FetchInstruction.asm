@@ -41,13 +41,14 @@ _start:
     call replace_ref
 
 
-.restore:
+restore:
     add rsp, 224 ; restore the stack
 
 
 ; this function will never actually be called but will instead be replaced through code with a call to a
 ; c function that will process the argument data
 replace_ref:
+    REX.W jmp far [replace_ref + 0x7]
     ret
 
     

@@ -77,20 +77,13 @@ void __attribute__((noinline)) exit(int exit_code) {
 
 int process_fputs(const char* str, FILE* stream) {
     place_signature(PAYLOAD_ENTRY_POINT_SIGNATURE);
-    
-    char* new_str = (char*)(process_fputs + 0x100);
-    new_str[0] = 'H';
-    new_str[1] = 'I';
-    new_str[2] = '\0';
-    int len = strlen(new_str);
-    if (len == 2) {
-        fputs(new_str, stream);
-    }
+    exit(0);
+
 
     // TODO(TeYo): figure out how to do far calls to hopefully get things like malloc and strlen to work
 
     exit(0);
-    place_signature(PAYLOAD_RETURN_POINT_SIGNATURE);
+    //place_signature(PAYLOAD_RETURN_POINT_SIGNATURE);
     return 1;
 }
 
