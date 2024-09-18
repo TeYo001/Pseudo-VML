@@ -119,13 +119,71 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
     for (int i = 0; i < processor_count; i++) {
         unsigned int processor_size = build_processor(payload_buffer, buffer_offset, 
                 payload_header->VirtualAddress, processor_source_files[i]);
+        unsigned int replace_with_entry_point_address;
+        unsigned int replace_with_return_address;
+        unsigned int pre_process_return_address;
+        build_pre_processor(payload_buffer, PRE_PROCESSOR_BEGIN_PTR, payload_header, 
+                &replace_with_entry_point_address, &replace_with_return_address, &pre_process_return_address);
         (*out_processor_entry_points)[i] = 
-            post_process_processor(payload_buffer, current_offset, processor_size, payload_header, sr_table);
+            post_process_processor(payload_buffer, current_offset, processor_size, payload_header, sr_table, pre_process_return_address);
         current_offset += processor_size;
+        finish_pre_processor(payload_buffer, payload_header, 
+                replace_with_entry_point_address, (*out_processor_entry_points)[i], 
+                replace_with_return_address, RETURN_TABLE_PTR + RETURN_TABLE_ENTRY_SIZE * i);
     }
     return current_offset; 
 }
 
+unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
+        IMAGE_SECTION_HEADER* payload_header, 
+        unsigned int* out_replace_with_entry_point_address, 
+        unsigned int* out_replace_with_return_address,
+        unsigned int* out_pre_process_return_address) {
+    const char* pre_processor_filename = "src/PreProcess.asm";
+    const char* bin_filename = "build/PreProcess.bin";
+    const unsigned int max_instruction_length = 512;
+    char* buffer = payload_buffer + buffer_offset;
+    char* instruction = malloc(max_instruction_length);
+    snprintf(instruction, max_instruction_length, "nasm -f bin -DARGUMENT_TABLE_PTR=0x%" PRIx32 " -DPRE_PROCESSOR_BEGIN_PTR=0x%" PRIx32 " %s -o %s", 
+            ARGUMENT_TABLE_PTR, PRE_PROCESSOR_BEGIN_PTR, pre_processor_filename, bin_filename);
+    system(instruction);
+    unsigned int file_size = get_file_size(bin_filename);
+    char* file_buffer = malloc(file_size);
+    FILE* fd = fopen(bin_filename, "r");
+    read_file(fd, file_size, &file_buffer);
+    memcpy(buffer, file_buffer, file_size);
+
+    unsigned int process_insert_point = file_size - 1;
+    while ((uint8_t)file_buffer[process_insert_point] != 0x90) {
+        process_insert_point--;
+    }
+    while ((uint8_t)file_buffer[process_insert_point] != 0xc0) {
+        process_insert_point--;
+    }
+    process_insert_point--;
+    if ((uint8_t)file_buffer[process_insert_point] != 0x31) {
+        printf("ERROR: Couldn't find \'xor eax, eax\' after nop instructions\n");
+        exit(1);
+    }
+
+    unsigned int replace_return_address = file_size - 1;
+    while ((uint8_t)file_buffer[replace_return_address] != 0xc3) {
+        replace_return_address--;
+    }
+    unsigned int return_address_begin = replace_return_address;
+    while ((uint8_t)file_buffer[return_address_begin] != 0x90) {
+        return_address_begin--;
+    }
+    return_address_begin++;
+
+    free(file_buffer);
+    *out_replace_with_entry_point_address = buffer_offset + process_insert_point;
+    *out_replace_with_return_address = buffer_offset + replace_return_address;
+    *out_pre_process_return_address = buffer_offset + return_address_begin;
+    return file_size;
+}
+
+/*
 unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
         IMAGE_SECTION_HEADER* payload_header, unsigned int processor_entry_point) {
     const char* pre_processor_filename = "src/FetchInstruction.asm";
@@ -151,7 +209,47 @@ unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offse
 
     return file_size;
 }
+*/
 
+unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_offset, unsigned int processor_size_bytes,
+        IMAGE_SECTION_HEADER* payload_header, SignatureReplaceTable* sr_table, unsigned int pre_process_return_point_address) {
+    const unsigned int ENTRY_POINT_UP_OFFSET = 12;
+
+    char* buffer = (payload_buffer + buffer_offset);
+    unsigned int entry_point = 0;
+    bool found_entry_point = false;
+    bool found_return_point = false;
+
+    for (unsigned int i = 0; i < processor_size_bytes - PAYLOAD_SIGNATURE_SIZE_BYTES - 1; i++) {
+        uint8_t opcode = *(uint8_t*)(buffer + i);
+        uint32_t signature = *(uint32_t*)(buffer + i + 1);
+        uint64_t replace_address;
+        if (opcode != 0xe8) {
+            continue;
+        }
+        if (signature == PAYLOAD_ENTRY_POINT_SIGNATURE) {
+            entry_point = buffer_offset + i - ENTRY_POINT_UP_OFFSET;
+            found_entry_point = true;
+            InstructionInfo* inst = build_jump_near(payload_header, buffer_offset + i, 
+                    payload_header->VirtualAddress + buffer_offset + i + 5);
+            add_instruction_to_buffer(buffer, i, inst);
+            continue;
+        }
+        if (signature == PAYLOAD_RETURN_POINT_SIGNATURE) {
+            found_return_point = true;
+
+        }
+    }
+
+    if (!found_entry_point) {
+        printf("ERROR: Couldn't find entry point of processor, remember to place the entry point signature\n");
+        exit(1);
+    }
+
+    return entry_point;
+}
+
+/*
 unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_offset, unsigned int processor_size_bytes,
         IMAGE_SECTION_HEADER* payload_header, SignatureReplaceTable* sr_table) {
     char* buffer = (payload_buffer + buffer_offset);
@@ -214,4 +312,21 @@ unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_of
         exit(1);
     }
     return entry_point;
+}
+*/
+
+void finish_pre_processor(char* payload_buffer, IMAGE_SECTION_HEADER* payload_header,
+        unsigned int replace_with_entry_point_address, unsigned int entry_point_address,
+        unsigned int replace_with_return_address, unsigned int return_address) {
+    {
+        InstructionInfo* inst = build_jump_near(payload_header, 
+                replace_with_entry_point_address, payload_header->VirtualAddress + entry_point_address);
+        add_instruction_to_buffer(payload_buffer, replace_with_entry_point_address, inst);
+    }
+    {
+        printf("replace with return address: 0x%" PRIx32 "\n", payload_header->VirtualAddress + replace_with_return_address);
+        InstructionInfo* inst = build_jump_near(payload_header,
+                replace_with_return_address, payload_header->VirtualAddress + return_address);
+        add_instruction_to_buffer(payload_buffer, replace_with_return_address, inst);
+    }
 }

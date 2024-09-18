@@ -44,8 +44,9 @@ typedef void* malloc_functype(int64_t size);
 typedef void free_functype(void* ptr);
 typedef void exit_functype(int exit_code);
 
-#define place_signature(signature) asm ("call rip + %c0" : : "i"(signature))
+#define place_signature(signature) asm volatile ("call rip + %c0" : : "i"(signature))
 
+/*
 int __attribute__((noinline)) fputs(const char* str, FILE* stream) {
     register int ret asm("rax");
     place_signature(PAYLOAD_SIGNATURE(PAYLOAD_INDEX_fputs));
@@ -74,15 +75,12 @@ void __attribute__((noinline)) free(void* ptr) {
 void __attribute__((noinline)) exit(int exit_code) {
     place_signature(PAYLOAD_SIGNATURE(PAYLOAD_INDEX_exit));
 };
+*/
 
 int process_fputs(const char* str, FILE* stream) {
     place_signature(PAYLOAD_ENTRY_POINT_SIGNATURE);
-    exit(0);
+    //exit(0);
 
-
-    // TODO(TeYo): figure out how to do far calls to hopefully get things like malloc and strlen to work
-
-    exit(0);
     //place_signature(PAYLOAD_RETURN_POINT_SIGNATURE);
     return 1;
 }

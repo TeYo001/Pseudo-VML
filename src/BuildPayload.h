@@ -31,8 +31,15 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
         unsigned int** out_processor_entry_points);
 
 unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
-        IMAGE_SECTION_HEADER* payload_header, unsigned int processor_entry_point);
+        IMAGE_SECTION_HEADER* payload_header, 
+        unsigned int* out_replace_with_entry_point_address, 
+        unsigned int* out_replace_with_return_address,
+        unsigned int* out_pre_process_return_address);
 
 // NOTE(TeYo): buffer offset is the start of the processor in the payload buffer
 unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_offset, unsigned int processor_size_bytes,
-        IMAGE_SECTION_HEADER* payload_header, SignatureReplaceTable* sr_table);
+        IMAGE_SECTION_HEADER* payload_header, SignatureReplaceTable* sr_table, unsigned int pre_process_return_address);
+
+void finish_pre_processor(char* payload_buffer, IMAGE_SECTION_HEADER* payload_header,
+        unsigned int replace_with_entry_point_address, unsigned int entry_point_address,
+        unsigned int replace_with_return_address, unsigned int return_address);

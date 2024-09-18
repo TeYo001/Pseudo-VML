@@ -387,7 +387,7 @@ int main() {
     JumpTable* jump_table;
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
-    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 4092 * 2;
+    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000;
     const char* EXECUTABLE_FILENAME = "test/simple64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
     get_all_info_from_exe(
@@ -420,7 +420,7 @@ int main() {
         .characteristics = IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA 
             | IMAGE_SCN_CNT_UNINITIALIZED_DATA
     };
-    IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 4, 4);    
+    IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 32, 32);    
 
     unsigned int processor_count = 1;
     unsigned int* processor_entry_points = malloc(sizeof(unsigned int) * processor_count);
@@ -461,10 +461,6 @@ int main() {
 
         unsigned int processors_size = build_processors(payload_buffer, PROCESSORS_BEGIN_PTR, 
                 new_header, sr_table, processor_source_files, processor_count, &processor_entry_points);
-
-        unsigned int pre_processor_size = build_pre_processor(payload_buffer, PRE_PROCESSOR_BEGIN_PTR,
-                new_header, processor_entry_points[0]);
-
         /*
         unsigned int process_ret_inst_rva = PROCESSORS_BEGIN_PTR;
         while ((uint8_t)payload_buffer[process_ret_inst_rva] != 0xc3 
@@ -480,9 +476,9 @@ int main() {
     // change call to jump instruction
     {
         unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        printf("testing: %" PRIx32 "\n", new_header->VirtualAddress + PRE_PROCESSOR_BEGIN_PTR);
+        printf("testing: %" PRIx32 "\n", new_header->VirtualAddress);
         InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr,
-                new_header->VirtualAddress + processor_entry_points[0]);
+                new_header->VirtualAddress + 0x10);
         printf("new jmp (len: %u): ", jmp_info->data_length);
         print_hex(jmp_info->raw_data, jmp_info->data_length);
         add_instruction(mod_table, jmp_info);
