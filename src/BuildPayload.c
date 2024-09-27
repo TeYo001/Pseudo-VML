@@ -4,7 +4,7 @@
 #include "stdlib.h"
 #include "string.h"
 
-
+/*
 SignatureReplaceTable* build_signature_replace_table(IMAGE_SECTION_HEADER* jump_table_header, JumpTable* jump_table,
         const char** jump_func_names, unsigned int jump_func_name_count) {
     if (jump_func_name_count < PAYLOAD_SIGNATURE_COUNT) {
@@ -43,6 +43,7 @@ bool replace_signature(SignatureReplaceTable* sr_table, uint32_t signature, uint
     }
     return false;
 }
+*/
 
 unsigned int build_kernel32_information_table(char* payload_buffer, unsigned int buffer_offset,
         uint64_t kernel_module_ptr,
@@ -73,7 +74,8 @@ unsigned int build_return_table(char* payload_buffer, unsigned int buffer_offset
 }
 
 static unsigned int build_processor(char* payload_buffer, unsigned int buffer_offset,
-        uint64_t section_va, const char* source_file) {
+        uint64_t get_module_handle_ptr, uint64_t load_library_ptr, uint64_t free_library_ptr, uint64_t get_proc_address_ptr, 
+        const char* source_file) {
     const unsigned int SIZEOF_COMPILE_COMMAND = 512;
     char* compile_command = calloc(1, SIZEOF_COMPILE_COMMAND);
     unsigned int name_size = strlen(source_file) + 1;
@@ -86,8 +88,13 @@ static unsigned int build_processor(char* payload_buffer, unsigned int buffer_of
     memcpy(binary_file, object_file, strlen(object_file) + 1);
     memcpy(object_file + strlen(object_file) - 2, ".o", strlen(".o") + 1);
     memcpy(binary_file + strlen(binary_file) - 2, ".bin", strlen(".bin") + 1);
-    snprintf(compile_command, SIZEOF_COMPILE_COMMAND, "x86_64-w64-mingw32-gcc -O0 -fPIE -mabi=ms -D SECTION_VIRTUAL_ADDRESS=0x%" PRIx64 " -c %s -o %s", 
-            section_va, source_file, object_file);
+    snprintf(compile_command, SIZEOF_COMPILE_COMMAND, "x86_64-w64-mingw32-gcc -O0 -fPIE -mabi=ms" 
+            " -D GET_MODULE_HANDLE_PTR=0x%" PRIx64 
+            " -D LOAD_LIBRARY_PTR=0x%" PRIx64
+            " -D FREE_LIBRARY_PTR=0x%" PRIx64
+            " -D GET_PROC_ADDRESS_PTR=0x%" PRIx64
+            " -c %s -o %s", 
+            get_module_handle_ptr, load_library_ptr, free_library_ptr, get_proc_address_ptr, source_file, object_file);
     printf("%s\n", compile_command);
     system(compile_command);
     memset(compile_command, 0, SIZEOF_COMPILE_COMMAND);
@@ -117,8 +124,14 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
         unsigned int** out_processor_entry_points) {
     unsigned int current_offset = buffer_offset;
     for (int i = 0; i < processor_count; i++) {
+        uint64_t get_module_handle_ptr = 0x7b60d1c0;
+        uint64_t load_library_ptr = 0x7b60e0a8;
+        uint64_t free_library_ptr = 0x123; // TODO(TeYo): Fill this in
+        uint64_t get_proc_address_ptr = 0x7b61c110;
         unsigned int processor_size = build_processor(payload_buffer, buffer_offset, 
-                payload_header->VirtualAddress, processor_source_files[i]);
+                get_module_handle_ptr, load_library_ptr, free_library_ptr, get_proc_address_ptr, 
+                processor_source_files[i]);
+        /*
         unsigned int replace_with_entry_point_address;
         unsigned int replace_with_return_address;
         unsigned int pre_process_return_address;
@@ -130,10 +143,13 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
         finish_pre_processor(payload_buffer, payload_header, 
                 replace_with_entry_point_address, (*out_processor_entry_points)[i], 
                 replace_with_return_address, RETURN_TABLE_PTR + RETURN_TABLE_ENTRY_SIZE * i);
+        */
     }
     return current_offset; 
 }
 
+// NOTE(TeYo): This is temporarly removed to simplify testing
+/* 
 unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
         IMAGE_SECTION_HEADER* payload_header, 
         unsigned int* out_replace_with_entry_point_address, 
@@ -182,6 +198,7 @@ unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offse
     *out_pre_process_return_address = buffer_offset + return_address_begin;
     return file_size;
 }
+*/
 
 /*
 unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offset,
@@ -329,4 +346,8 @@ void finish_pre_processor(char* payload_buffer, IMAGE_SECTION_HEADER* payload_he
                 replace_with_return_address, payload_header->VirtualAddress + return_address);
         add_instruction_to_buffer(payload_buffer, replace_with_return_address, inst);
     }
+}
+
+void build_simple_testing_payload(char* payload_buffer, IMAGE_SECTION_HEADER* payload_header) {
+    // TODO(TeYo): Continue from here
 }

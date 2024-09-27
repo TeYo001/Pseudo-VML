@@ -1,21 +1,20 @@
     default rel
     BITS 64
 
-extern _printf
-
 ; volatile RAX, R10, R11, XMM4, and XMM5 
 
-section .text
-global main 
-main:
-; call FAR [far_func]
-push msg
-call _printf
+extern exit 
 
-section .data
-msg: db "Hello\n", 0
+section .text
+global _start 
+_start:
+; call FAR [far_func]
+jmp far_func
 
 section .cool
 far_func:
     xor rcx, rcx
+    mov rdi, 0x0
+    call exit
+    int3
     

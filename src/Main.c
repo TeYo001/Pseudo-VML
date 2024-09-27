@@ -14,14 +14,6 @@
 
 #include "PayloadStructure.h"
 
-/*
-#ifdef _WIN32
-#include "ExeParser.h"
-#elif __linux__
-#include "ElfParser.h"
-#endisomethingwrong.hf
-*/
-
 void get_all_info_from_exe(const char* exe_filename, 
         unsigned int max_instruction_count,
         unsigned int max_jump_function_count,
@@ -173,7 +165,9 @@ void find_all_calls_to(AsmParserState* asm_state, JumpTable* jump_table, const c
             unsigned int length_bytes = asm_state->instruction_lengths[i];
             int32_t target_va = ptr + length_bytes + disp32;
             if (target_va == jump_func->jump_address) {
-                printf("\'%s\' call %u: 0x%" PRIx32 "\n", func_name, i, asm_state->text_file_offset + target_va);
+                printf("\'%s\' call %u to 0x%" PRIx32 " at 0x%" PRIx32 "\n", func_name, i, 
+                        asm_state->text_file_offset + target_va,
+                        asm_state->binary_instruction_pointers[i]);
             } 
         }
     }
@@ -294,7 +288,7 @@ int test_new_section() {
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
     const unsigned int NEW_SECTION_RAW_DATA_SIZE = 128;
-    const char* EXECUTABLE_FILENAME = "test/simple64.exe";
+    const char* EXECUTABLE_FILENAME = "test/stripped64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
     get_all_info_from_exe(
             EXECUTABLE_FILENAME, 
@@ -390,6 +384,7 @@ int main() {
     const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000;
     const char* EXECUTABLE_FILENAME = "test/simple64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
+
     get_all_info_from_exe(
             EXECUTABLE_FILENAME, 
             MAX_INSTRUCTION_COUNT,
@@ -400,7 +395,10 @@ int main() {
 
     print_jump_table(jump_table);
 
+    find_all_calls_to(asm_state, jump_table, "fprintf");
     find_all_calls_to(asm_state, jump_table, "fputs");
+    find_all_calls_to(asm_state, jump_table, "fwrite");
+    find_all_calls_to(asm_state, jump_table, "exit");
 
     FILE* fd = fopen(EXECUTABLE_FILENAME, "r");   
 
@@ -421,64 +419,28 @@ int main() {
             | IMAGE_SCN_CNT_UNINITIALIZED_DATA
     };
     IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 32, 32);    
+    printf("new name: %s\n", new_header->Name);
 
     unsigned int processor_count = 1;
     unsigned int* processor_entry_points = malloc(sizeof(unsigned int) * processor_count);
 
     // build payload
     {
-        const char* jump_func_names[PAYLOAD_SIGNATURE_COUNT] = {
-            "fputs",
-            "strlen",
-            "malloc",
-            "free",
-            "exit"
-        };
-        unsigned int return_address_count = 1;
-        unsigned int return_virtual_addresses[] = {
-            exe_info->text_section->VirtualAddress + asm_state->binary_instruction_pointers[1741]
-        };
         const char* processor_source_files[] = {
             "src/Process.c"
         };
 
-        // NOTE(TeYo): This information is not garanteed to be correct across all computers, verify before use
-        const uint64_t kernel_module_ptr = 0x7b600000;
-        const uint64_t kernel_GetModuleHandleA_ptr = 0x7b60d1c0;
-        const uint64_t kernel_GetProcAddress_ptr = 0x7b61c110;
-       
-        
-        SignatureReplaceTable* sr_table = build_signature_replace_table(exe_info->text_section, jump_table, jump_func_names, PAYLOAD_SIGNATURE_COUNT);
-        
-        unsigned int kernel32_information_table_size = 
-            build_kernel32_information_table(payload_buffer, KERNEL32_INFORMATION_TABLE_PTR, 
-                kernel_module_ptr,
-                kernel_GetModuleHandleA_ptr,
-                kernel_GetProcAddress_ptr);
-        
-        unsigned int return_tabe_size = build_return_table(payload_buffer, RETURN_TABLE_PTR, 
-                new_header, return_virtual_addresses, return_address_count);
-
         unsigned int processors_size = build_processors(payload_buffer, PROCESSORS_BEGIN_PTR, 
-                new_header, sr_table, processor_source_files, processor_count, &processor_entry_points);
-        /*
-        unsigned int process_ret_inst_rva = PROCESSORS_BEGIN_PTR;
-        while ((uint8_t)payload_buffer[process_ret_inst_rva] != 0xc3 
-                && (uint8_t)payload_buffer[process_ret_inst_rva + 1] != 0x90) {
-            process_ret_inst_rva++;
-        }
-        
-        InstructionInfo* jmp_info = build_jump_near(new_header, process_ret_inst_rva, new_header->VirtualAddress + RETURN_TABLE_PTR + 0);
-        add_instruction_to_buffer(payload_buffer, process_ret_inst_rva, jmp_info);
-        */
+                new_header, NULL, processor_source_files, processor_count, &processor_entry_points);
     }
 
     // change call to jump instruction
     {
         unsigned int ptr = asm_state->binary_instruction_pointers[1740];
         printf("testing: %" PRIx32 "\n", new_header->VirtualAddress);
+        
         InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr,
-                new_header->VirtualAddress + 0x10);
+                exe_info->nt_header->OptionalHeader.AddressOfEntryPoint);
         printf("new jmp (len: %u): ", jmp_info->data_length);
         print_hex(jmp_info->raw_data, jmp_info->data_length);
         add_instruction(mod_table, jmp_info);
@@ -507,6 +469,8 @@ int main() {
     snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s",
             MODIFIED_EXECUTABLE_FILENAME, "test/modified64_objdump_complete.asm");
     system(objdump_command_str);
+
+    printf("FINISHED\n");
 
     return 0;
 }

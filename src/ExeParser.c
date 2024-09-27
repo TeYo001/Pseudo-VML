@@ -5,6 +5,7 @@
 #include "string.h"
 #include "sys/stat.h"
 #include "math.h"
+#include "FileEditor.h"
 
 /*
 
@@ -664,6 +665,7 @@ void free_import_info(ImportInfo* import_info) {
     free(import_info);
 }
 
+/*
 ExeInfo* exe_get_info(const char* filename) {
     FILE* fd = fopen(filename, "rb");
     IMAGE_DOS_HEADER* dos_header = malloc(sizeof(IMAGE_DOS_HEADER));
@@ -727,8 +729,72 @@ ExeInfo* exe_get_info(const char* filename) {
     info->file_size = file_size;
     return info;
 }
+*/
 
+ExeInfo* exe_get_info(const char* filename) {
+    unsigned int file_size = get_file_size(filename);
+    FILE* fd = fopen(filename, "rb");
+    IMAGE_DOS_HEADER* dos_header = malloc(sizeof(IMAGE_DOS_HEADER));
+    IMAGE_NT_HEADERS64* nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
+    IMAGE_SECTION_HEADER* section_header_list;
+    IMAGE_SECTION_HEADER** section_header_pointer_list;
+    IMAGE_SECTION_HEADER* text_section;
+    char* raw_text_code;
+    unsigned int raw_text_file_offset;
+    IMAGE_SECTION_HEADER* import_section;
+    char* raw_import_data;
+    unsigned int raw_import_file_offset;
+    unsigned int header_end_offset;
 
+    fread(dos_header, sizeof(IMAGE_DOS_HEADER), 1, fd);
+    fseek(fd, dos_header->e_lfanew, SEEK_SET);
+    fread(nt_header, sizeof(IMAGE_NT_HEADERS64), 1, fd);
+    header_end_offset = ftell(fd);
+    unsigned int section_list_size_bytes = nt_header->FileHeader.NumberOfSections * SECTION_TABLE_ENTRY_SIZE;
+    section_header_list = malloc(section_list_size_bytes);
+    section_header_pointer_list = malloc(nt_header->FileHeader.NumberOfSections * sizeof(void*));
+    fread(section_header_list, section_list_size_bytes, 1, fd);
+    for (unsigned int i = 0; i < nt_header->FileHeader.NumberOfSections; i++) {
+        section_header_pointer_list[i] = &section_header_list[i];
+    }
+
+    BYTE* text_section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
+    BYTE* import_section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
+    make_section_name(".text", (BYTE**)&text_section_name);
+    make_section_name(".idata", (BYTE**)&import_section_name);
+    text_section = get_section(text_section_name, fd, 
+            section_header_pointer_list, nt_header->FileHeader.NumberOfSections, 
+            nt_header->OptionalHeader.FileAlignment, &raw_text_file_offset, &raw_text_code);
+    import_section = get_section(import_section_name, fd, 
+            section_header_pointer_list, nt_header->FileHeader.NumberOfSections, 
+            nt_header->OptionalHeader.FileAlignment, &raw_import_file_offset, &raw_import_data);
+    
+    fclose(fd);
+
+    ImportInfo* import_info = parse_import_data(raw_import_data, 
+            import_section->SizeOfRawData, 
+            import_section->VirtualAddress, 
+            raw_import_file_offset,
+            raw_text_code,
+            text_section->VirtualAddress,
+            raw_text_file_offset,
+            nt_header->OptionalHeader.AddressOfEntryPoint);
+
+    ExeInfo* exe_info = malloc(sizeof(ExeInfo));
+    exe_info->dos_header = dos_header;
+    exe_info->nt_header = nt_header;
+    exe_info->text_section = text_section;
+    exe_info->raw_text_file_offset = raw_text_file_offset;
+    exe_info->raw_text_code = raw_text_code;
+    exe_info->import_section = import_section;
+    exe_info->raw_import_file_offset = raw_import_file_offset;
+    exe_info->raw_import_data = raw_import_data;
+    exe_info->all_sections = section_header_pointer_list;
+    exe_info->end_of_header_offset = header_end_offset;
+    exe_info->file_size = file_size;
+    exe_info->import_info = import_info;
+    return exe_info;
+}
 
 
 
