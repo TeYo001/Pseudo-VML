@@ -288,7 +288,7 @@ int test_new_section() {
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
     const unsigned int NEW_SECTION_RAW_DATA_SIZE = 128;
-    const char* EXECUTABLE_FILENAME = "test/stripped64.exe";
+    const char* EXECUTABLE_FILENAME = "test/simple64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
     get_all_info_from_exe(
             EXECUTABLE_FILENAME, 
@@ -379,7 +379,7 @@ int main() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
     JumpTable* jump_table;
-    const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 8;
+    const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 4;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
     const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000;
     const char* EXECUTABLE_FILENAME = "test/simple64.exe";
@@ -419,11 +419,11 @@ int main() {
             | IMAGE_SCN_CNT_UNINITIALIZED_DATA
     };
     IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 32, 32);    
-    printf("new name: %s\n", new_header->Name);
-
+    
     unsigned int processor_count = 1;
     unsigned int* processor_entry_points = malloc(sizeof(unsigned int) * processor_count);
 
+    
     // build payload
     {
         const char* processor_source_files[] = {
@@ -437,11 +437,11 @@ int main() {
     // change call to jump instruction
     {
         unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        printf("testing: %" PRIx32 "\n", new_header->VirtualAddress);
         
+        printf("PROCESSOR ENTRY POINT: 0x%" PRIx32 "\n", processor_entry_points[0]);
+
         InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr,
-                exe_info->nt_header->OptionalHeader.AddressOfEntryPoint);
-        printf("new jmp (len: %u): ", jmp_info->data_length);
+                new_header->VirtualAddress + processor_entry_points[0]);
         print_hex(jmp_info->raw_data, jmp_info->data_length);
         add_instruction(mod_table, jmp_info);
     }

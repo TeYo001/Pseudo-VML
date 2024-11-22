@@ -208,7 +208,8 @@ void use_mod_table(ModTable* mod_table, FILE* fd) {
 }
 
 unsigned int align_up(unsigned int ptr, unsigned int alignment) {
-    return ptr - (ptr % alignment) + alignment;
+    unsigned int mod = ptr % alignment;
+    return ptr - mod + alignment * (mod != 0);
 }
 
 unsigned int get_file_size(const char* filename) {

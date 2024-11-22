@@ -31,9 +31,9 @@ typedef void* HANDLE;
 typedef void* FARFUNC;
 
 // Base functions
-HMODULE (*GetModuleHandle)(const char* module_name) = (void*)GET_MODULE_HANDLE_PTR;
-HMODULE (*LoadLibrary)(const char* module_name) = (void*)LOAD_LIBRARY_PTR;
-FARFUNC (*GetProcAddress)(HMODULE module, const char* proc_name);
+const static HMODULE (*GetModuleHandle)(const char* module_name) = (void*)GET_MODULE_HANDLE_PTR;
+const static HMODULE (*LoadLibrary)(const char* module_name) = (void*)LOAD_LIBRARY_PTR;
+const static FARFUNC (*GetProcAddress)(HMODULE module, const char* proc_name) = (void*)GET_PROC_ADDRESS_PTR;
 
 // imported functions
 typedef void (*ExitProcess_functype)(unsigned int uExitCode);
@@ -45,15 +45,16 @@ typedef HANDLE (*GetStdHandle_functype)(uint32_t std_handle_code);
 typedef bool (*WriteConsoleA_functype)(HANDLE console_output,
         const char* message, uint32_t message_length, uint32_t* out_chars_written, void* reserved);
 
-char data[100] __attribute__((section(".text"))) = "kernel32.dll\0ExitProcess\0";
+static const char data[100] __attribute__((section(".text"))) = "kernel32.dll\0ExitProcess\0";
+
 
 int process_fputs(const char* str, FILE* stream) {
-    asm ("int3");
+    place_signature(PAYLOAD_ENTRY_POINT_SIGNATURE);
     HMODULE kernel = GetModuleHandle(data + 0);
     ExitProcess_functype ExitProcess = GetProcAddress(kernel, data + 13);
     //GetStdHandle_functype GetStdHandle = GetProcAddress(kernel, "GetStdHandle");
     //WriteConsoleA_functype WriteConsole = GetProcAddress(kernel, "WriteConsoleA");
-
+    
     /*
     HANDLE stdout = GetStdHandle(STD_OUTPUT_HANDLE_CODE);
     uint32_t written_count;
