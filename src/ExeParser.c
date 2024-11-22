@@ -768,9 +768,10 @@ ExeInfo* exe_get_info(const char* filename) {
     import_section = get_section(import_section_name, fd, 
             section_header_pointer_list, nt_header->FileHeader.NumberOfSections, 
             nt_header->OptionalHeader.FileAlignment, &raw_import_file_offset, &raw_import_data);
-    
+
     fclose(fd);
 
+    
     ImportInfo* import_info = parse_import_data(raw_import_data, 
             import_section->SizeOfRawData, 
             import_section->VirtualAddress, 
@@ -779,6 +780,8 @@ ExeInfo* exe_get_info(const char* filename) {
             text_section->VirtualAddress,
             raw_text_file_offset,
             nt_header->OptionalHeader.AddressOfEntryPoint);
+    
+    
 
     ExeInfo* exe_info = malloc(sizeof(ExeInfo));
     exe_info->dos_header = dos_header;

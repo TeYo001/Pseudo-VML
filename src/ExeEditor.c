@@ -29,18 +29,25 @@ IMAGE_SECTION_HEADER* build_new_section_push_back(ExeInfo* exe_info, SectionBuil
             exe_info->nt_header->OptionalHeader.SectionAlignment);
     new_header->VirtualAddress += exe_info->nt_header->OptionalHeader.SectionAlignment * extra_virtual_padding_count;
 
+    printf("NEW HEADER: %u\n", new_header->SizeOfRawData);
+    printf("NEW HEADER: %u\n", new_header->Misc.VirtualSize);
+
     return new_header;
 }
 
 void section_push_back(ExeInfo* exe_info, ModTable* mod_table, SectionBuildInfo* new_section, IMAGE_SECTION_HEADER* new_header) {   
     IMAGE_NT_HEADERS64* new_nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
     memcpy(new_nt_header, exe_info->nt_header, sizeof(IMAGE_NT_HEADERS64));
-    new_nt_header->OptionalHeader.SizeOfImage = align_up(new_header->VirtualAddress + new_header->Misc.VirtualSize,
-            exe_info->nt_header->OptionalHeader.SectionAlignment);
+    new_nt_header->OptionalHeader.SizeOfImage = new_header->VirtualAddress + new_header->Misc.VirtualSize;
+        //align_up(new_header->VirtualAddress + new_header->Misc.VirtualSize,
+        //    exe_info->nt_header->OptionalHeader.SectionAlignment);
     new_nt_header->FileHeader.NumberOfSections += 1;
     
     // NOTE(TeYo): I originally added this for debug purposes, but now it's just kinda here (unsure if it's needed)
     new_nt_header->FileHeader.Characteristics = new_nt_header->FileHeader.Characteristics | IMAGE_FILE_DEBUG_STRIPPED;
+
+    printf("OLD SIZE OF IMAGE: %u\n", exe_info->nt_header->OptionalHeader.SizeOfImage);
+    printf("SIZE OF IMAGE: %u\n", new_nt_header->OptionalHeader.SizeOfImage);
 
     add_mod_entry_replace(mod_table, exe_info->dos_header->e_lfanew, (char*)new_nt_header, sizeof(IMAGE_NT_HEADERS64));
     add_mod_entry_replace(mod_table, 

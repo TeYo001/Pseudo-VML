@@ -88,8 +88,8 @@ static unsigned int build_processor(char* payload_buffer, unsigned int buffer_of
     memcpy(binary_file, object_file, strlen(object_file) + 1);
     memcpy(object_file + strlen(object_file) - 2, ".o", strlen(".o") + 1);
     memcpy(binary_file + strlen(binary_file) - 2, ".bin", strlen(".bin") + 1);
-    snprintf(compile_command, SIZEOF_COMPILE_COMMAND, "x86_64-w64-mingw32-gcc -O0 -fPIE -mabi=ms" 
-            " -D GET_MODULE_HANDLE_PTR=0x%" PRIx64 
+    snprintf(compile_command, SIZEOF_COMPILE_COMMAND, "x86_64-w64-mingw32-gcc -O0 -fPIE -mabi=ms"
+            " -D GET_MODULE_HANDLE_PTR=0x%" PRIx64
             " -D LOAD_LIBRARY_PTR=0x%" PRIx64
             " -D FREE_LIBRARY_PTR=0x%" PRIx64
             " -D GET_PROC_ADDRESS_PTR=0x%" PRIx64
@@ -107,7 +107,7 @@ static unsigned int build_processor(char* payload_buffer, unsigned int buffer_of
     read_file(fd, file_size, &binary_process_data);
     fclose(fd);
     memcpy(payload_buffer + buffer_offset, binary_process_data, file_size);
-
+    
     free(binary_process_data);
     free(object_file);
     free(binary_file);
@@ -128,18 +128,23 @@ unsigned int build_processors(char* payload_buffer, unsigned int buffer_offset,
         uint64_t load_library_ptr = 0x7b60e0a8;
         uint64_t free_library_ptr = 0x123; // TODO(TeYo): Fill this in
         uint64_t get_proc_address_ptr = 0x7b61c110;
-        unsigned int processor_size = build_processor(payload_buffer, buffer_offset, 
+        unsigned int processor_size = build_processor(payload_buffer, buffer_offset,
                 get_module_handle_ptr, load_library_ptr, free_library_ptr, get_proc_address_ptr, 
                 processor_source_files[i]);
-        /*
+        
         unsigned int replace_with_entry_point_address;
         unsigned int replace_with_return_address;
         unsigned int pre_process_return_address;
+        /*
         build_pre_processor(payload_buffer, PRE_PROCESSOR_BEGIN_PTR, payload_header, 
                 &replace_with_entry_point_address, &replace_with_return_address, &pre_process_return_address);
+        */
+
         (*out_processor_entry_points)[i] = 
             post_process_processor(payload_buffer, current_offset, processor_size, payload_header, sr_table, pre_process_return_address);
         current_offset += processor_size;
+        
+        /*
         finish_pre_processor(payload_buffer, payload_header, 
                 replace_with_entry_point_address, (*out_processor_entry_points)[i], 
                 replace_with_return_address, RETURN_TABLE_PTR + RETURN_TABLE_ENTRY_SIZE * i);
@@ -230,7 +235,7 @@ unsigned int build_pre_processor(char* payload_buffer, unsigned int buffer_offse
 
 unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_offset, unsigned int processor_size_bytes,
         IMAGE_SECTION_HEADER* payload_header, SignatureReplaceTable* sr_table, unsigned int pre_process_return_point_address) {
-    const unsigned int ENTRY_POINT_UP_OFFSET = 12;
+    const unsigned int ENTRY_POINT_UP_OFFSET = 14;
 
     char* buffer = (payload_buffer + buffer_offset);
     unsigned int entry_point = 0;
@@ -254,7 +259,7 @@ unsigned int post_process_processor(char* payload_buffer, unsigned int buffer_of
         }
         if (signature == PAYLOAD_RETURN_POINT_SIGNATURE) {
             found_return_point = true;
-
+            // TODO(TeYo): add return point stuff
         }
     }
 

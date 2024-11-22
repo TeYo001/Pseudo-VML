@@ -3,7 +3,7 @@
 // NOTE(TeYo): Im removing a bunch of stuff to simplify the payload as much as possible rn
 #define RETURN_TABLE_PTR 0x0
 #define RETURN_TABLE_ENTRY_SIZE 7
-#define PROCESSORS_BEGIN_PTR 0x100
+#define PROCESSORS_BEGIN_PTR 0x500
 
 /* 
 #define KERNEL32_INFORMATION_TABLE_PTR 0x0
