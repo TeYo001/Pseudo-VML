@@ -5,78 +5,89 @@
 #include "stdbool.h"
 #include "string.h"
 
-JumpTable* build_jump_table(unsigned int max_jump_function_count) {
+JumpTable* build_jump_table(ExeInfo* exe_info, unsigned int max_jump_function_count) {
     JumpTable* jump_table = malloc(sizeof(JumpTable));
     jump_table->jump_functions = malloc(sizeof(JumpFunction) * max_jump_function_count);
     jump_table->jump_function_count = 0;
     jump_table->max_jump_function_count = max_jump_function_count;
+
+    unsigned int iat_va = exe_info->nt_header->OptionalHeader.DataDirectory[IMPORT_ADDRESS_TABLE_ENTRY].VirtualAddress;
+    unsigned int iat_size = exe_info->nt_header->OptionalHeader.DataDirectory[IMPORT_ADDRESS_TABLE_ENTRY].Size;
+    IMAGE_SECTION_HEADER* parent_section = NULL;
+    for (int i = 0; i < exe_info->nt_header->FileHeader.NumberOfSections; i++) {
+        if (exe_info->all_sections[i]->VirtualAddress > iat_va) {
+            continue;
+        }
+        parent_section = exe_info->all_sections[i];
+    }
+    if (parent_section == NULL) {
+        printf("ERROR: Couldn't find the parent section of the IAT\n");
+        exit(1);
+    }
+    jump_table->iat_start_virtual_address = iat_va;
+    jump_table->iat_end_virtual_address = iat_va + iat_size;
+
+    for (int i = 0; i < exe_info->import_info->dll_info_count; i++) {
+        DllInfo* dll = &exe_info->import_info->dll_infos[i];
+        if (jump_table->jump_function_count + dll->function_count > jump_table->max_jump_function_count) {
+            printf("ERROR: Maximum jump function count reached\n");
+            exit(1);
+        }
+        for (int j = 0; j < dll->function_count; j++) {
+            JumpFunction* func = &jump_table->jump_functions[jump_table->jump_function_count];
+            func->from_dll = dll;
+            func->jump_address = dll->function_pointers[j];
+            func->function_index = j;
+            jump_table->jump_function_count++;
+        } 
+    }
+
     return jump_table;
+}
+
+// returns the jump function index
+static unsigned int get_jump_func_from_reference(JumpTable* jump_table, int64_t dest_va) {
+    for (int i = 0; i < jump_table->jump_function_count; i++) {
+        if (jump_table->jump_functions[i].jump_address == dest_va) {
+            return i;
+        }
+    }
+
+    printf("ERROR: Coulnd't get the reference");
+    exit(1);
+    return 0;
+}
+
+void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, JumpTable* jump_table) {
+    for (unsigned int i = 0; i < asm_state->decoded_instructions_count; i++) {
+        xed_decoded_inst_t* inst = &asm_state->decoded_instructions[i];
+        xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
+        uint8_t modrm = xed_decoded_inst_get_modrm(inst);
+        unsigned int inst_size_bytes = asm_state->instruction_lengths[i];
+        unsigned int ptr = asm_state->binary_instruction_pointers[i];
+
+        if (iclass == XED_ICLASS_CALL_NEAR
+                && modrm == 0x15) {
+            uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
+            int64_t dest_va = rel32 + exe_info->text_section->VirtualAddress + ptr + 6;
+            if (!(dest_va >= jump_table->iat_start_virtual_address &&
+                    dest_va <= jump_table->iat_end_virtual_address)) {
+                continue;
+            }
+            unsigned int jump_func_idx = get_jump_func_from_reference(jump_table, dest_va);
+            JumpFunction* jump_func = &jump_table->jump_functions[jump_func_idx];
+            const char* dll_name = jump_func->from_dll->name;
+            const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
+            printf("\'%s\' from: \'%s\' call at op idx: %u\n", func_name, dll_name, i);
+        }
+    }
+
+    printf("0x%" PRIx32 " -> 0x%" PRIx32 "\n", jump_table->iat_start_virtual_address, jump_table->iat_end_virtual_address);
 }
 
 void free_jump_table(JumpTable* jump_table) {
     free(jump_table->jump_functions);
     free(jump_table);
-}
-
-static unsigned int find_function_match(unsigned int target, DllInfo* current_dll, ImportInfo* import_info, DllInfo** out_from_dll) {
-    // check current
-    for (unsigned int i = 0; i < current_dll->function_count; i++) {
-        if (target == current_dll->function_pointers[i]) {
-            *out_from_dll = current_dll;
-            return i;
-        }
-    }
-
-    // check all
-    for (unsigned int dll = 0; dll < import_info->dll_info_count; dll++) {
-        DllInfo* dll_info = &import_info->dll_infos[dll];
-        if (dll_info == current_dll) {
-            continue;
-        }
-        for (unsigned int i = 0; i < dll_info->function_count; i++) {
-            if (target == dll_info->function_pointers[i]) {
-                *out_from_dll = dll_info;
-                return i;
-            }
-        }
-    }
-
-    printf("ERROR: Couldn't find imported function with target: %" PRIx32 "\n", target);
-    exit(1);
-    return 0;
-}
-
-JumpTable* parse_jump_table(ExeInfo* exe_info, AsmParserState* asm_state, unsigned int max_jump_function_count) {
-    JumpTable* jump_table = build_jump_table(max_jump_function_count);
-    unsigned int found_jump_function_count = 0;
-    DllInfo* current_dll = &exe_info->import_info->dll_infos[0];
-    for (unsigned int inst_index = 0; inst_index < asm_state->decoded_instructions_count; inst_index++) {
-        xed_decoded_inst_t* inst = &asm_state->decoded_instructions[inst_index];
-        xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
-        unsigned int ptr = asm_state->binary_instruction_pointers[inst_index];
-        JumpEntry* entry = (JumpEntry*)(asm_state->binary_instructions + ptr);
-
-        if (iclass == XED_ICLASS_JMP 
-                && entry->opcode == VALID_JUMP_ENTRY_OPCODE 
-                && entry->rm_byte == VALID_JUMP_ENTRY_RM_BYTE 
-                && entry->padding == VALID_JUMP_ENTRY_PADDING) {
-            if (found_jump_function_count >= jump_table->max_jump_function_count) {
-                printf("ERROR: Too many jump functions found\n");
-                exit(1);
-            }
-            unsigned int length_bytes = asm_state->instruction_lengths[inst_index];
-            unsigned int target = ptr + length_bytes + entry->ptr + exe_info->nt_header->OptionalHeader.BaseOfCode;
-            unsigned int func_index = find_function_match(target, current_dll, exe_info->import_info, &current_dll);
-            JumpFunction* func = &jump_table->jump_functions[found_jump_function_count];
-            func->from_dll = current_dll;
-            func->function_index = func_index;
-            func->jump_address = ptr;
-            found_jump_function_count++;
-        }
-    }
-    jump_table->jump_function_count = found_jump_function_count;
-
-    return jump_table;
 }
 
 void print_jump_table(JumpTable* jump_table) {
@@ -89,14 +100,4 @@ void print_jump_table(JumpTable* jump_table) {
                 func->function_index,
                 func->from_dll->name);
     }
-}
-
-JumpFunction* find_jump_func(JumpTable* jump_table, const char* func_name) {
-    for (unsigned int i = 0; i < jump_table->jump_function_count; i++) {
-        JumpFunction* func = &jump_table->jump_functions[i];
-        if (strcmp(func->from_dll->function_names[func->function_index], func_name) == 0) {
-            return func;
-        }
-    }
-    return NULL;
 }

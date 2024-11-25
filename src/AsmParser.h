@@ -17,11 +17,7 @@ typedef struct {
     xed_address_width_enum_t xed_stack_addr_width;
 } AsmParserState;
 
-AsmParserState* build_asm_parser_state(
-        const char* binary_instructions_filename,
-        unsigned int decoded_instructions_max_count,
-        unsigned int text_file_offset);
-
+AsmParserState* build_asm_parser_state(const char* raw_text_code, unsigned int raw_text_size, unsigned int decoded_instructions_max_count);
 void free_asm_state(AsmParserState* asm_state);
 void parse_asm(AsmParserState* asm_state);
 bool parse_instruction(AsmParserState* asm_state);

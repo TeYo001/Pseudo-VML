@@ -20,10 +20,11 @@ typedef struct {
     JumpFunction* jump_functions;
     unsigned int jump_function_count;
     unsigned int max_jump_function_count;
+    unsigned int iat_start_virtual_address;
+    unsigned int iat_end_virtual_address;
 } JumpTable;
 
-JumpTable* build_jump_table(unsigned int max_jump_function_count);
+JumpTable* build_jump_table(ExeInfo* exe_info, unsigned int max_jump_function_count);
+void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, JumpTable* jump_table);
 void free_jump_table(JumpTable* jump_table);
-JumpTable* parse_jump_table(ExeInfo* exe_info, AsmParserState* asm_state, unsigned int max_jump_function_count);
 void print_jump_table(JumpTable* jump_table);
-JumpFunction* find_jump_func(JumpTable* jump_table, const char* func_name);

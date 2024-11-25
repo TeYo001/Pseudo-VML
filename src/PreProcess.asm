@@ -6,50 +6,52 @@
     default rel
     BITS 64
 
-; volatile RAX, R10, R11, XMM4, and XMM5 
-; non volatile 
-
-; ARGUMENT_TABLE_PTR gets defined by a compilation flag
-; PRE_PROCESSOR_BEGIN_PTR gets defined by a compilation flag
-
-%define ARGUMENT_TABLE_OFFSET ARGUMENT_TABLE_PTR - PRE_PROCESSOR_BEGIN_PTR - 8
-    section .pvml
-_start:
-REX.W jmp far [_start + 0x7] ; hopefully fixes the CS register
-
-; save non-volitile registers that will be used
+; save all registers
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
     push rdi
-    lea rdi, ($ + ARGUMENT_TABLE_OFFSET)
-
-; put data into argument information table
-    mov [rdi], rcx,
-    add rdi, 8
-    mov [rdi], rdx, 
-    add rdi, 8
-    mov [rdi], r8
-    add rdi, 8
-    mov [rdi], r9
-    add rdi, 8
-    movdqu oword [rdi], xmm0
-    add rdi, 16
-    movdqu oword [rdi], xmm1
-    add rdi, 16
-    movdqu oword [rdi], xmm2
-    add rdi, 16
-    movdqu oword [rdi], xmm3
-
-; process the information by jumping into c code (this will be replaces by a jump command by the post compilation step)
-    xor eax, eax
-
-; padding
-    nop
-    nop
-    nop
-    nop
-    nop
-
-; restore the non-volitile registers
-    pop rdi
-
-; return to normal execution (this will be replaces by a far jump command by the post compilation step) 
-    ret
+    push rbp
+    push rsp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    sub esp, 16
+    movdqu dqword [esp], xmm0
+    sub esp, 16
+    movdqu dqword [esp], xmm1
+    sub esp, 16
+    movdqu dqword [esp], xmm2
+    sub esp, 16
+    movdqu dqword [esp], xmm3
+    sub esp, 16
+    movdqu dqword [esp], xmm4
+    sub esp, 16
+    movdqu dqword [esp], xmm5
+    sub esp, 16
+    movdqu dqword [esp], xmm6
+    sub esp, 16
+    movdqu dqword [esp], xmm7
+    sub esp, 16
+    movdqu dqword [esp], xmm8
+    sub esp, 16
+    movdqu dqword [esp], xmm9
+    sub esp, 16
+    movdqu dqword [esp], xmm10
+    sub esp, 16
+    movdqu dqword [esp], xmm11
+    sub esp, 16
+    movdqu dqword [esp], xmm12
+    sub esp, 16
+    movdqu dqword [esp], xmm13
+    sub esp, 16
+    movdqu dqword [esp], xmm14
+    sub esp, 16
+    movdqu dqword [esp], xmm15

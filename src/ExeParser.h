@@ -271,6 +271,7 @@ typedef struct {
 } DllInfo; 
 
 typedef struct {
+    unsigned int parent_virtual_address;
     DllInfo* dll_infos;
     unsigned int dll_info_count;
 } ImportInfo;
@@ -281,10 +282,10 @@ typedef struct {
     IMAGE_SECTION_HEADER* text_section;
     char* raw_text_code;
     unsigned int raw_text_file_offset;
-    IMAGE_SECTION_HEADER* import_section;
+    //IMAGE_SECTION_HEADER* import_section;
     IMAGE_SECTION_HEADER** all_sections;
-    char* raw_import_data;
-    unsigned int raw_import_file_offset;
+    //char* raw_import_data;
+    //unsigned int raw_import_file_offset;
     ImportInfo* import_info;
     unsigned int end_of_header_offset;
     unsigned int file_size;
