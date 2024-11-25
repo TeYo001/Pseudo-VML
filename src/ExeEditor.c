@@ -39,15 +39,13 @@ void section_push_back(ExeInfo* exe_info, ModTable* mod_table, SectionBuildInfo*
     IMAGE_NT_HEADERS64* new_nt_header = malloc(sizeof(IMAGE_NT_HEADERS64));
     memcpy(new_nt_header, exe_info->nt_header, sizeof(IMAGE_NT_HEADERS64));
     new_nt_header->OptionalHeader.SizeOfImage = new_header->VirtualAddress + new_header->Misc.VirtualSize;
+    printf("NEW IMAGE SIZE: 0x%" PRIx32 "\n", new_nt_header->OptionalHeader.SizeOfImage);
         //align_up(new_header->VirtualAddress + new_header->Misc.VirtualSize,
         //    exe_info->nt_header->OptionalHeader.SectionAlignment);
     new_nt_header->FileHeader.NumberOfSections += 1;
     
     // NOTE(TeYo): I originally added this for debug purposes, but now it's just kinda here (unsure if it's needed)
     new_nt_header->FileHeader.Characteristics = new_nt_header->FileHeader.Characteristics | IMAGE_FILE_DEBUG_STRIPPED;
-
-    printf("OLD SIZE OF IMAGE: %u\n", exe_info->nt_header->OptionalHeader.SizeOfImage);
-    printf("SIZE OF IMAGE: %u\n", new_nt_header->OptionalHeader.SizeOfImage);
 
     add_mod_entry_replace(mod_table, exe_info->dos_header->e_lfanew, (char*)new_nt_header, sizeof(IMAGE_NT_HEADERS64));
     add_mod_entry_replace(mod_table, 
@@ -65,7 +63,7 @@ void section_push_back(ExeInfo* exe_info, ModTable* mod_table, SectionBuildInfo*
 // NOTE(TeYo): This is the algorithm i based the caclculate checksum function on
 /*
 uint32_t pe_header_checksum(uint32_t* base, off_t size) {
-  uint32_t sum=0;
+ new_header->VirtualAddress +  uint32_t sum=0;
   off_t i;
   for(i=0;i<(size/4);i++) {
     if(i==0x36) continue;
