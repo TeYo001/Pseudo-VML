@@ -450,18 +450,19 @@ static unsigned int rva_to_file_offset(unsigned int data_rva, unsigned int secti
     // sec_fo = fo - rva + sec_va
 }
 
-static void parse_import_descriptors(const char* data, 
+static void parse_import_descriptors(const char* data,
+        unsigned int data_offset,
         unsigned int data_length,
-        IMAGE_IMPORT_DESCRIPTOR** out_descriptors, 
+        IMAGE_IMPORT_DESCRIPTOR** out_descriptors,
         unsigned int* out_descriptor_count) {
     if (data_length < sizeof(IMAGE_IMPORT_DESCRIPTOR)) {
         printf("ERROR: import data is too small.\n");
         exit(1);
     }
-
+        
     unsigned int descriptor_count = 0;
-    unsigned int read_ptr = 1;
-    while (read_ptr < data_length) {
+    unsigned int read_ptr = 1 + data_offset;
+    while (read_ptr - data_offset < data_length) {
         if (data[read_ptr] == 0x00) {
             break;
         }
@@ -469,21 +470,21 @@ static void parse_import_descriptors(const char* data,
         read_ptr += sizeof(IMAGE_IMPORT_DESCRIPTOR);
     }
 
-    memcpy(*out_descriptors, data, sizeof(IMAGE_IMPORT_DESCRIPTOR) * descriptor_count);
+    memcpy(*out_descriptors, data + data_offset, sizeof(IMAGE_IMPORT_DESCRIPTOR) * descriptor_count);
     *out_descriptor_count = descriptor_count;
 }
 
 static void parse_import_functions(const char* data,
         unsigned int data_length,
-        unsigned int import_virtual_address,
-        unsigned int import_file_offset,
+        unsigned int parent_virtual_address,
+        unsigned int parent_file_offset,
         unsigned int thunk_rva,
         DllInfo* out_dll_info) {
-    unsigned int read_ptr = thunk_rva - import_virtual_address;
+    unsigned int read_ptr = thunk_rva - parent_virtual_address;
     unsigned int function_count = 0;
 
-    const unsigned int MAX_FUNCTION_COUNT = 128;
-
+    const unsigned int MAX_FUNCTION_COUNT = 512;
+    
     (*out_dll_info).function_names = malloc(sizeof(char*) * MAX_FUNCTION_COUNT);
     (*out_dll_info).function_pointers = malloc(sizeof(ULONGLONG) * MAX_FUNCTION_COUNT);
     (*out_dll_info).hints = malloc(sizeof(WORD) * MAX_FUNCTION_COUNT);
@@ -498,22 +499,23 @@ static void parse_import_functions(const char* data,
             exit(1);
         }
 
-        IMAGE_IMPORT_BY_NAME* by_name = (void*)(data + ptr - import_virtual_address);
+        IMAGE_IMPORT_BY_NAME* by_name = (void*)(data + ptr - parent_virtual_address);
         unsigned int name_length = strlen(by_name->Name);
         
         // print
+        
+        // TODO(TeYo): Make so that you can toggle these kinds of things from main
         /*
         printf("func name: %s : ", by_name->Name);
-        printf("ptr: %" PRIx64 " : ", import_file_offset + ptr - import_virtual_address);
+        printf("ptr: %" PRIx64 " : ", parent_file_offset + ptr - parent_virtual_address);
         printf("ptr (raw): %" PRIx64 "\n", ptr);
-        printf("test: %" PRIx64 "\n", (uint64_t)read_ptr + import_virtual_address);
         */
 
         // name
         char* name = malloc(name_length + 1);
         memcpy(name, by_name->Name, name_length + 1);
         (*out_dll_info).function_names[function_count] = name;
-        (*out_dll_info).function_pointers[function_count] = (uint64_t)read_ptr + import_virtual_address;
+        (*out_dll_info).function_pointers[function_count] = (uint64_t)read_ptr + parent_virtual_address;
         (*out_dll_info).hints[function_count] = by_name->Hint;
 
         read_ptr += sizeof(ULONGLONG);
@@ -526,53 +528,75 @@ static void parse_import_functions(const char* data,
 
 static void print_import_descriptor(IMAGE_IMPORT_DESCRIPTOR* descriptor, const char* name, unsigned int import_virtual_address, unsigned int import_file_offset) {
     printf("### IMPORT DESCRIPTOR ###:\n");
-    printf("- OriginalFirstThunk: %" PRIx32 " -> 0x%" PRIx32 "\n", descriptor->DUMMYUNIONNAME.OriginalFirstThunk, 
+    printf("- OriginalFirstThunk: 0x%" PRIx32 " -> 0x%" PRIx32 "\n", descriptor->DUMMYUNIONNAME.OriginalFirstThunk, 
             import_file_offset + descriptor->DUMMYUNIONNAME.OriginalFirstThunk - import_virtual_address);
     printf("- TimeDateStamp: %" PRIu32 "\n", descriptor->TimeDateStamp);
-    printf("- ForwarderChain: %" PRIx32 "\n", descriptor->ForwarderChain);
+    printf("- ForwarderChain: 0x%" PRIx32 "\n", descriptor->ForwarderChain);
     printf("- Name: %s\n", name);
-    printf("- FirstThunk: %" PRIx32 " -> 0x%" PRIx32 "\n", descriptor->FirstThunk,
+    printf("- FirstThunk: 0x%" PRIx32 " -> 0x%" PRIx32 "\n", descriptor->FirstThunk,
             import_file_offset + descriptor->FirstThunk - import_virtual_address);
 }
 
-static ImportInfo* parse_import_data(const char* import_raw_data, 
-        unsigned int data_length, 
-        unsigned int import_virtual_address, 
-        unsigned int import_file_offset,
-        const char* text_raw_data,
-        unsigned int text_virtual_address,
-        unsigned int text_file_offset,
-        unsigned int entry_point_rva) {
-    const unsigned int MAX_DESCRIPTOR_COUNT = 8;
-    const unsigned int MAX_FUNCTION_NAME_COUNT = 128;
+static ImportInfo* parse_import_data(IMAGE_NT_HEADERS64* nt_header, FILE* fd, IMAGE_SECTION_HEADER** all_sections) {
+    const unsigned int MAX_DESCRIPTOR_COUNT = 16;
     const unsigned int MAX_NAME_LENGTH = 512;
+
+    unsigned int import_rva = nt_header->OptionalHeader.DataDirectory[IMPORT_TABLE_DIRECTORY_ENTRY].VirtualAddress;
+    unsigned int data_length = nt_header->OptionalHeader.DataDirectory[IMPORT_TABLE_DIRECTORY_ENTRY].Size;
+    
+    printf("data length: 0x%" PRIx32 "\n", data_length);
+
+    IMAGE_SECTION_HEADER* parent_section = NULL;
+    for (unsigned int i = 0; i < nt_header->FileHeader.NumberOfSections; i++) {
+        if (all_sections[i]->VirtualAddress > import_rva) {
+            continue;
+        }
+        parent_section = all_sections[i];
+    }
+    if (parent_section == NULL) {
+        printf("ERROR: Couldn't find parent section for import table\n");
+        exit(1);
+    }
+
+    unsigned int import_virtual_address = import_rva - parent_section->VirtualAddress;
+    unsigned int import_file_offset = import_virtual_address + parent_section->PointerToRawData;
+
+    char* parent_raw_data = malloc(parent_section->SizeOfRawData);
+    fseek(fd, parent_section->PointerToRawData, SEEK_SET);
+    read_file(fd, parent_section->SizeOfRawData, &parent_raw_data);
+    
+    printf("import virtual address: 0x%" PRIx32 "\n", import_virtual_address);
+    printf("import file offset: 0x%" PRIx32 "\n", import_file_offset);
+    printf("parent virtual address: 0x%" PRIx32 "\n", parent_section->VirtualAddress);
+    printf("parent file offset: 0x%" PRIx32 "\n", parent_section->PointerToRawData);
 
     IMAGE_IMPORT_DESCRIPTOR* descriptors = malloc(sizeof(IMAGE_IMPORT_DESCRIPTOR) * MAX_DESCRIPTOR_COUNT);
     unsigned int descriptor_count;
     ImportInfo* import_info = malloc(sizeof(ImportInfo));
+    import_info->parent_virtual_address = parent_section->VirtualAddress;
     import_info->dll_infos = malloc(sizeof(DllInfo) * MAX_DESCRIPTOR_COUNT);
     import_info->dll_info_count = 0;
 
-    FILE* fd = fopen("test/idata.bin", "w");
-    fwrite(import_raw_data, data_length, 1, fd);
-    fclose(fd);
-
-    parse_import_descriptors(import_raw_data, data_length, &descriptors, &descriptor_count);
+    parse_import_descriptors(parent_raw_data, import_file_offset - parent_section->PointerToRawData, data_length, &descriptors, &descriptor_count);
     import_info->dll_info_count = descriptor_count;
 
-    if (descriptor_count >= MAX_DESCRIPTOR_COUNT) {
+    if (descriptor_count > MAX_DESCRIPTOR_COUNT) {
         printf("ERROR: Too many dll descriptors\n");
         exit(1);
     }
-
+    
     for (unsigned int i = 0; i < descriptor_count; i++) {
-        print_import_descriptor(&descriptors[i], import_raw_data + descriptors[i].Name - import_virtual_address, import_virtual_address, import_file_offset);
-        const char* name = import_raw_data + descriptors[i].Name - import_virtual_address;
+        const char* name = parent_raw_data + descriptors[i].Name - parent_section->VirtualAddress;
+        print_import_descriptor(&descriptors[i], name, import_virtual_address, import_file_offset);
         import_info->dll_infos[i].name = malloc(sizeof(char) * MAX_NAME_LENGTH);
         memcpy(import_info->dll_infos[i].name, name, strlen(name) + 1); 
-        parse_import_functions(import_raw_data, data_length, import_virtual_address, import_file_offset, descriptors[i].FirstThunk, &import_info->dll_infos[i]);
+        parse_import_functions(parent_raw_data, 
+                parent_section->SizeOfRawData, 
+                parent_section->VirtualAddress,
+                parent_section->PointerToRawData,
+                descriptors[i].FirstThunk,&import_info->dll_infos[i]);
     }
-
+    
     return import_info;
 }
 
@@ -595,31 +619,24 @@ static void find_all_sections(FILE* fd,
     (*out_section_header_list) = section_header_list;
 }
 
-static IMAGE_SECTION_HEADER* get_section(BYTE section_name[IMAGE_SIZEOF_SHORT_NAME], 
+static IMAGE_SECTION_HEADER* get_section(unsigned int section_index, 
         FILE* fd, 
         IMAGE_SECTION_HEADER** all_sections, 
         unsigned int section_count,
         unsigned int file_alignment, 
         unsigned int* out_raw_file_offset, 
         char** out_raw_data) {
-    for (unsigned int i = 0; i < section_count; i++) {
-        if (memcmp(section_name, all_sections[i]->Name, IMAGE_SIZEOF_SHORT_NAME) != 0) {
-            continue;
-        }
-        IMAGE_SECTION_HEADER* header = all_sections[i];
-        char* raw_data = malloc(header->SizeOfRawData);
-        fseek(fd, header->PointerToRawData, SEEK_SET);
-        *out_raw_file_offset = ftell(fd);
-        unsigned int part_count = header->SizeOfRawData / file_alignment;
-        if (fread(raw_data, file_alignment, part_count, fd) != part_count) {
-            printf("ERROR: Couldn't read section data\n");
-            exit(1);
-        }
-        *out_raw_data = raw_data;
-        return header;
+    IMAGE_SECTION_HEADER* header = all_sections[section_index];
+    char* raw_data = malloc(header->SizeOfRawData);
+    fseek(fd, header->PointerToRawData, SEEK_SET);
+    *out_raw_file_offset = ftell(fd);
+    unsigned int part_count = header->SizeOfRawData / file_alignment;
+    if (fread(raw_data, file_alignment, part_count, fd) != part_count) {
+        printf("ERROR: Couldn't read section data\n");
+        exit(1);
     }
-
-    return NULL;
+    *out_raw_data = raw_data;
+    return header;
 }
 
 static void make_section_name(const char* section_name, BYTE** out_name) {
@@ -641,8 +658,8 @@ void free_exe_info(ExeInfo* exe_info) {
     free(exe_info->dos_header);
     free(exe_info->nt_header);
     free(exe_info->raw_text_code);
-    free(exe_info->raw_import_data);
-    free_import_info(exe_info->import_info);
+    //free(exe_info->raw_import_data);
+    //free_import_info(exe_info->import_info);
     free(exe_info);
 }
 
@@ -741,9 +758,6 @@ ExeInfo* exe_get_info(const char* filename) {
     IMAGE_SECTION_HEADER* text_section;
     char* raw_text_code;
     unsigned int raw_text_file_offset;
-    IMAGE_SECTION_HEADER* import_section;
-    char* raw_import_data;
-    unsigned int raw_import_file_offset;
     unsigned int header_end_offset;
 
     fread(dos_header, sizeof(IMAGE_DOS_HEADER), 1, fd);
@@ -758,30 +772,14 @@ ExeInfo* exe_get_info(const char* filename) {
         section_header_pointer_list[i] = &section_header_list[i];
     }
 
-    BYTE* text_section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
-    BYTE* import_section_name = malloc(IMAGE_SIZEOF_SHORT_NAME);
-    make_section_name(".text", (BYTE**)&text_section_name);
-    make_section_name(".idata", (BYTE**)&import_section_name);
-    text_section = get_section(text_section_name, fd, 
+    // NOTE(TeYo): This code assumes that the .text section is always going to be the first section
+    text_section = get_section(0, fd, 
             section_header_pointer_list, nt_header->FileHeader.NumberOfSections, 
             nt_header->OptionalHeader.FileAlignment, &raw_text_file_offset, &raw_text_code);
-    import_section = get_section(import_section_name, fd, 
-            section_header_pointer_list, nt_header->FileHeader.NumberOfSections, 
-            nt_header->OptionalHeader.FileAlignment, &raw_import_file_offset, &raw_import_data);
+
+    ImportInfo* import_info = parse_import_data(nt_header, fd, section_header_pointer_list);
 
     fclose(fd);
-
-    
-    ImportInfo* import_info = parse_import_data(raw_import_data, 
-            import_section->SizeOfRawData, 
-            import_section->VirtualAddress, 
-            raw_import_file_offset,
-            raw_text_code,
-            text_section->VirtualAddress,
-            raw_text_file_offset,
-            nt_header->OptionalHeader.AddressOfEntryPoint);
-    
-    
 
     ExeInfo* exe_info = malloc(sizeof(ExeInfo));
     exe_info->dos_header = dos_header;
@@ -789,9 +787,9 @@ ExeInfo* exe_get_info(const char* filename) {
     exe_info->text_section = text_section;
     exe_info->raw_text_file_offset = raw_text_file_offset;
     exe_info->raw_text_code = raw_text_code;
-    exe_info->import_section = import_section;
-    exe_info->raw_import_file_offset = raw_import_file_offset;
-    exe_info->raw_import_data = raw_import_data;
+    //exe_info->import_section = import_section;
+    //exe_info->raw_import_file_offset = raw_import_file_offset;
+    //exe_info->raw_import_data = raw_import_data;
     exe_info->all_sections = section_header_pointer_list;
     exe_info->end_of_header_offset = header_end_offset;
     exe_info->file_size = file_size;

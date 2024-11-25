@@ -87,8 +87,11 @@ InstructionInfo* build_call_near(IMAGE_SECTION_HEADER* instruction_header, unsig
     return instruction;
 }
 
+// TODO(TeYo): Reimplement this function at some point 
+
 InstructionInfo* build_call_near_to_jump_func_name(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, 
         JumpTable* jump_table, IMAGE_SECTION_HEADER* jump_func_header, const char* jump_func_name) {
+    /*
     InstructionInfo* instruction = malloc(sizeof(InstructionInfo));
     Instruction_CallNear* raw_data = malloc(sizeof(Instruction_CallNear));
     raw_data->opcode = 0xE8;
@@ -110,4 +113,8 @@ InstructionInfo* build_call_near_to_jump_func_name(IMAGE_SECTION_HEADER* instruc
     instruction->data_length = sizeof(Instruction_CallNear);
     instruction->instruction_file_offset = inst_fo;
     return instruction;
+    */
+
+    printf("build_call_near_to_jump_func_name: THIS FUNCTION IS CURRENTLY DEPRICATED\n");
+    return NULL;
 }
