@@ -7,7 +7,7 @@
     BITS 64
 
 ; save all registers
-    push rax
+; push rax
     push rbx
     push rcx
     push rdx
@@ -24,34 +24,34 @@
     push r14
     push r15
     sub esp, 16
-    movdqu dqword [esp], xmm0
+    movdqu oword [esp], xmm0
     sub esp, 16
-    movdqu dqword [esp], xmm1
+    movdqu oword [esp], xmm1
     sub esp, 16
-    movdqu dqword [esp], xmm2
+    movdqu oword [esp], xmm2
     sub esp, 16
-    movdqu dqword [esp], xmm3
+    movdqu oword [esp], xmm3
     sub esp, 16
-    movdqu dqword [esp], xmm4
+    movdqu oword [esp], xmm4
     sub esp, 16
-    movdqu dqword [esp], xmm5
+    movdqu oword [esp], xmm5
     sub esp, 16
-    movdqu dqword [esp], xmm6
+    movdqu oword [esp], xmm6
     sub esp, 16
-    movdqu dqword [esp], xmm7
+    movdqu oword [esp], xmm7
     sub esp, 16
-    movdqu dqword [esp], xmm8
+    movdqu oword [esp], xmm8
     sub esp, 16
-    movdqu dqword [esp], xmm9
+    movdqu oword [esp], xmm9
     sub esp, 16
-    movdqu dqword [esp], xmm10
+    movdqu oword [esp], xmm10
     sub esp, 16
-    movdqu dqword [esp], xmm11
+    movdqu oword [esp], xmm11
     sub esp, 16
-    movdqu dqword [esp], xmm12
+    movdqu oword [esp], xmm12
     sub esp, 16
-    movdqu dqword [esp], xmm13
+    movdqu oword [esp], xmm13
     sub esp, 16
-    movdqu dqword [esp], xmm14
+    movdqu oword [esp], xmm14
     sub esp, 16
-    movdqu dqword [esp], xmm15
+    movdqu oword [esp], xmm15

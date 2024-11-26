@@ -30,6 +30,33 @@ void free_instruction(InstructionInfo* instruction) {
     free(instruction);
 }
 
+void add_nops(ModTable* mod_table, unsigned int file_offset, unsigned int nop_count) {
+    char* nops = malloc(nop_count); // TODO(TeYo): This is a memory leak, but it really doesn't matter
+    for (unsigned int i = 0; i < nop_count; i++) {
+        nops[i] = 0x90;
+    }
+    add_mod_entry_replace(mod_table, file_offset, nops, nop_count);
+}
+
+void add_nops_to_buffer(char* buffer, unsigned int buffer_offset, unsigned int nop_count) {
+    char nops[nop_count];
+    for (unsigned int i = 0; i < nop_count; i++) {
+        nops[i] = 0x90;
+    }
+    memcpy(buffer + buffer_offset, nops, nop_count);
+}
+
+unsigned int get_necessary_clearing_length(AsmParserState* asm_state, unsigned int instruction_idx, unsigned int min_length) {
+    unsigned int start_ptr = asm_state->binary_instruction_pointers[instruction_idx];
+    unsigned int clearing_length = asm_state->instruction_lengths[instruction_idx];
+    unsigned int last_idx = instruction_idx;
+    while (clearing_length < min_length) {
+        last_idx++;
+        clearing_length += asm_state->instruction_lengths[last_idx];
+    }
+    return clearing_length;
+}
+
 InstructionInfo* build_jump_near(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int destination_virtual_address) {
     InstructionInfo* instruction = malloc(sizeof(InstructionInfo));
     Instruction_JumpNear* raw_data = malloc(sizeof(Instruction_JumpNear));
@@ -118,3 +145,21 @@ InstructionInfo* build_call_near_to_jump_func_name(IMAGE_SECTION_HEADER* instruc
     printf("build_call_near_to_jump_func_name: THIS FUNCTION IS CURRENTLY DEPRICATED\n");
     return NULL;
 }
+
+InstructionInfo* build_reg_jump(IMAGE_SECTION_HEADER* instruction_header, unsigned int instruction_rva, unsigned int destination_virtual_address) {
+    InstructionInfo* instruction = malloc(sizeof(InstructionInfo));
+    Instruction_RegJump* raw_data = malloc(sizeof(Instruction_RegJump));
+    raw_data->mov_opcode = 0xB8;
+    raw_data->jmp_opcode = 0x67;
+    raw_data->jmp_args = 0x20FF;
+    unsigned int inst_va = instruction_header->VirtualAddress + instruction_rva + sizeof(Instruction_RegJump);
+    unsigned int inst_fo = instruction_header->PointerToRawData + instruction_rva;
+    raw_data->rel32 = destination_virtual_address - inst_va;
+    
+    instruction->type = INST_TYPE_REG_JUMP;
+    instruction->raw_data = (char*)raw_data;
+    instruction->data_length = sizeof(Instruction_RegJump);
+    instruction->instruction_file_offset = inst_fo;
+    return instruction;
+}
+

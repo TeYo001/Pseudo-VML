@@ -62,16 +62,29 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
     for (unsigned int i = 0; i < asm_state->decoded_instructions_count; i++) {
         xed_decoded_inst_t* inst = &asm_state->decoded_instructions[i];
         xed_iclass_enum_t iclass = xed_decoded_inst_get_iclass(inst);
+        uint8_t opcode = asm_state->binary_instructions[asm_state->binary_instruction_pointers[i]];
         uint8_t modrm = xed_decoded_inst_get_modrm(inst);
         unsigned int inst_size_bytes = asm_state->instruction_lengths[i];
         unsigned int ptr = asm_state->binary_instruction_pointers[i];
 
-        if (iclass == XED_ICLASS_CALL_NEAR
-                && modrm == 0x15) {
+        if (iclass == XED_ICLASS_CALL_NEAR && modrm == 0x15) {
             uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
             int64_t dest_va = rel32 + exe_info->text_section->VirtualAddress + ptr + 6;
             if (!(dest_va >= jump_table->iat_start_virtual_address &&
                     dest_va <= jump_table->iat_end_virtual_address)) {
+                continue;
+            }
+            unsigned int jump_func_idx = get_jump_func_from_reference(jump_table, dest_va);
+            JumpFunction* jump_func = &jump_table->jump_functions[jump_func_idx];
+            const char* dll_name = jump_func->from_dll->name;
+            const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
+            printf("\'%s\' from: \'%s\' call at op idx: %u\n", func_name, dll_name, i);
+        } else if (iclass == XED_ICLASS_JMP || modrm == 0x25) {
+            // NOTE(TeYo): Then ever you se this, it's probably from a reference table before the IAT
+            uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
+            int64_t dest_va = rel32 + exe_info->text_section->VirtualAddress  + ptr + 6;
+            if (!(dest_va >= jump_table->iat_start_virtual_address &&
+                        dest_va <= jump_table->iat_end_virtual_address)) {
                 continue;
             }
             unsigned int jump_func_idx = get_jump_func_from_reference(jump_table, dest_va);
