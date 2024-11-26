@@ -3,37 +3,37 @@
     BITS 64
 
 ; restore all registers
-    movdqu xmm15, dqword [esp]
+    movdqu xmm15, oword [esp]
     add esp, 16
-    movdqu xmm14, dqword [esp]
+    movdqu xmm14, oword [esp]
     add esp, 16
-    movdqu xmm13, dqword [esp]
+    movdqu xmm13, oword [esp]
     add esp, 16
-    movdqu xmm12, dqword [esp]
+    movdqu xmm12, oword [esp]
     add esp, 16
-    movdqu xmm11, dqword [esp]
+    movdqu xmm11, oword [esp]
     add esp, 16
-    movdqu xmm10, dqword [esp]
+    movdqu xmm10, oword [esp]
     add esp, 16
-    movdqu xmm9, dqword [esp]
+    movdqu xmm9, oword [esp]
     add esp, 16
-    movdqu xmm8, dqword [esp]
+    movdqu xmm8, oword [esp]
     add esp, 16
-    movdqu xmm7, dqword [esp]
+    movdqu xmm7, oword [esp]
     add esp, 16
-    movdqu xmm6, dqword [esp]
+    movdqu xmm6, oword [esp]
     add esp, 16
-    movdqu xmm5, dqword [esp]
+    movdqu xmm5, oword [esp]
     add esp, 16
-    movdqu xmm4, dqword [esp]
+    movdqu xmm4, oword [esp]
     add esp, 16
-    movdqu xmm3, dqword [esp]
+    movdqu xmm3, oword [esp]
     add esp, 16
-    movdqu xmm2, dqword [esp]
+    movdqu xmm2, oword [esp]
     add esp, 16
-    movdqu xmm1, dqword [esp]
+    movdqu xmm1, oword [esp]
     add esp, 16
-    movdqu xmm0, dqword [esp]
+    movdqu xmm0, oword [esp]
     add esp, 16
     pop r15
     pop r14
@@ -50,4 +50,4 @@
     pop rdx
     pop rcx
     pop rbx
-    pop rax
+; pop rax (used for function return and so this is gonna be manipulated by the payload)

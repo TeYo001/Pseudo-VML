@@ -198,6 +198,24 @@ int main(int argc, char** argv)
         nob_cmd_append(&cmd, "src/FetchInstruction.asm", "-o", "build/FetchInstruction.bin");
         //if (!nob_cmd_run_sync(cmd)) return 1;
     }
+    
+    // Compile PreProcess
+    {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "nasm");
+        nob_cmd_append(&cmd, "-f", "bin");
+        nob_cmd_append(&cmd, "src/PreProcess.asm", "-o", "build/PreProcess.bin");
+        if (!nob_cmd_run_sync(cmd)) return 1;
+    }
+
+    // Compile PostProcess
+    {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "nasm");
+        nob_cmd_append(&cmd, "-f", "bin");
+        nob_cmd_append(&cmd, "src/PostProcess.asm", "-o", "build/PostProcess.bin");
+        if (!nob_cmd_run_sync(cmd)) return 1;
+    }
 
 run_skip:
     if (mainCmd == RUN || mainCmd == JUST_RUN)

