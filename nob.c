@@ -199,6 +199,15 @@ int main(int argc, char** argv)
         //if (!nob_cmd_run_sync(cmd)) return 1;
     }
     
+    // Compile Process
+    {
+        Nob_Cmd cmd = {0};
+        nob_cmd_append(&cmd, "nasm");
+        nob_cmd_append(&cmd, "-f", "bin");
+        nob_cmd_append(&cmd, "src/PreProcess.asm", "-o", "build/PreProcess.bin");
+        if (!nob_cmd_run_sync(cmd)) return 1;
+    }
+
     // Compile PreProcess
     {
         Nob_Cmd cmd = {0};
