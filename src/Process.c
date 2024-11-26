@@ -47,21 +47,7 @@ typedef bool (*WriteConsoleA_functype)(HANDLE console_output,
 
 static const char data[100] __attribute__((section(".text"))) = "kernel32.dll\0ExitProcess\0";
 
-
-int process_fputs(const char* str, FILE* stream) {
-    place_signature(PAYLOAD_ENTRY_POINT_SIGNATURE);
-    HMODULE kernel = GetModuleHandle(data + 0);
-    ExitProcess_functype ExitProcess = GetProcAddress(kernel, data + 13);
-    //GetStdHandle_functype GetStdHandle = GetProcAddress(kernel, "GetStdHandle");
-    //WriteConsoleA_functype WriteConsole = GetProcAddress(kernel, "WriteConsoleA");
-    
-    /*
-    HANDLE stdout = GetStdHandle(STD_OUTPUT_HANDLE_CODE);
-    uint32_t written_count;
-    WriteConsole(stdout, "Hello from payload!\n", 20, &written_count, NULL);
-    */
-
-    ExitProcess(0);
+int process() {
     return 0;
 }
 
