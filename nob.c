@@ -194,18 +194,33 @@ int main(int argc, char** argv)
     {
         Nob_Cmd cmd = {0};
         nob_cmd_append(&cmd, "nasm");
-        nob_cmd_append(&cmd, "-f", "bin");
-        nob_cmd_append(&cmd, "src/FetchInstruction.asm", "-o", "build/FetchInstruction.bin");
+        nob_cmd_append(&cmd, "-f", "win64");
+        nob_cmd_append(&cmd, "src/FetchInstruction.asm", "-o", "build/FetchInstruction.o");
         //if (!nob_cmd_run_sync(cmd)) return 1;
     }
     
     // Compile Process
     {
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "nasm");
-        nob_cmd_append(&cmd, "-f", "bin");
-        nob_cmd_append(&cmd, "src/PreProcess.asm", "-o", "build/PreProcess.bin");
-        if (!nob_cmd_run_sync(cmd)) return 1;
+        {
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
+            nob_cmd_append(&cmd, "-f" "PIE");
+            nob_cmd_append(&cmd, "-c", "src/Process.c", "-o", "build/Process.o");
+            if (!nob_cmd_run_sync(cmd)) return 1;
+        }
+        {
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "nasm");
+            nob_cmd_append(&cmd, "-f", "win64");
+            nob_cmd_append(&cmd, "src/AsmPayload.asm", "-o", "build/AsmPayload.o");
+            if (!nob_cmd_run_sync(cmd)) return 1;
+        }
+        {
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
+            nob_cmd_append(&cmd, "-o", "build/ProcessTest.exe", "build/Process.o", "build/AsmPayload.o");
+            if (!nob_cmd_run_sync(cmd)) return 1;
+        }
     }
 
     // Compile PreProcess
