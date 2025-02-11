@@ -218,7 +218,22 @@ int main(int argc, char** argv)
         {
             Nob_Cmd cmd = {0};
             nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
-            nob_cmd_append(&cmd, "-o", "build/ProcessTest.exe", "build/Process.o", "build/AsmPayload.o");
+            nob_cmd_append(&cmd, "-f" "PIE");
+            nob_cmd_append(&cmd, "-c", "src/ProcessLib.c", "-o", "build/ProcessLib.o");
+            if (!nob_cmd_run_sync(cmd)) return 1;
+        }
+        {
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
+            nob_cmd_append(&cmd, "-shared");
+            nob_cmd_append(&cmd, "-o", "build/Process.dll", "build/Process.o", "build/AsmPayload.o", "build/ProcessLib.o");
+            if (!nob_cmd_run_sync(cmd)) return 1;
+        }
+        {
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "objcopy");
+            nob_cmd_append(&cmd, "-O", "binary", "--only-section=.text");
+            nob_cmd_append(&cmd, "build/Process.dll", "build/Process.bin");
             if (!nob_cmd_run_sync(cmd)) return 1;
         }
     }
