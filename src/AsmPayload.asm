@@ -1,5 +1,7 @@
 section .text
     
+BITS 64
+
 global get_teb, get_peb
 
 get_teb:

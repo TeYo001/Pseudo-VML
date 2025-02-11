@@ -80,6 +80,35 @@ typedef struct {
   void* TlsExpansionSlots;
 } TEB;
 
+typedef uint16_t WORD;
+typedef uint32_t DWORD;
+typedef int32_t LONG;
+typedef uint8_t BYTE;
+typedef uint64_t ULONGLONG;
+typedef char CHAR;
+
+typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
+    WORD   e_magic;                     // Magic number
+    WORD   e_cblp;                      // Bytes on last page of file
+    WORD   e_cp;                        // Pages in file
+    WORD   e_crlc;                      // Relocations
+    WORD   e_cparhdr;                   // Size of header in paragraphs
+    WORD   e_minalloc;                  // Minimum extra paragraphs needed
+    WORD   e_maxalloc;                  // Maximum extra paragraphs needed
+    WORD   e_ss;                        // Initial (relative) SS value
+    WORD   e_sp;                        // Initial SP value
+    WORD   e_csum;                      // Checksum
+    WORD   e_ip;                        // Initial IP value
+    WORD   e_cs;                        // Initial (relative) CS value
+    WORD   e_lfarlc;                    // File address of relocation table
+    WORD   e_ovno;                      // Overlay number
+    WORD   e_res[4];                    // Reserved words
+    WORD   e_oemid;                     // OEM identifier (for e_oeminfo)
+    WORD   e_oeminfo;                   // OEM information; e_oemid specific
+    WORD   e_res2[10];                  // Reserved words
+    LONG   e_lfanew;                    // File address of new exe header
+} IMAGE_DOS_HEADER, *PIMAGE_DOS_HEADER;
+
 // asm functions
 extern TEB* get_teb(void);
 extern PEB* get_peb(void);
@@ -87,7 +116,7 @@ extern PEB* get_peb(void);
 // process structs
 
 typedef struct {
-    char* name;
+    char name[64];
     void* base;
 } LdrSimpleEntry;
 
@@ -109,7 +138,7 @@ unsigned int unicode_str_len(const wchar_t* str) {
 
 bool str_is_equal(const char* str1, const char* str2, unsigned int length) {
     for (int i = 0; i < length; i++) {
-        if (str1[i] != str2[2]) {
+        if (str1[i] != str2[i]) {
             return false;
         }
     }
@@ -134,26 +163,41 @@ void unicode_to_asci_str(char* destination, const wchar_t* source) {
     }
 }
 
-void build_simple_ldr(PEB* peb, LdrSimpleEntry* out_ldr_simple) {
+#include "stdio.h"
+
+unsigned int build_simple_ldr(PEB* peb, LdrSimpleEntry* out_ldr_simple) {
     LIST_ENTRY* head = &peb->Ldr->InMemoryOrderModuleList;
     LIST_ENTRY* current = head;
     unsigned int idx = 0;
     while ((current = current->Flink) != head) {
         LDR_DATA_TABLE_ENTRY* data = (LDR_DATA_TABLE_ENTRY*)current;
         out_ldr_simple[idx].base = data->DllBase;
-        unicode_str_len()
-        str_copy(data->FullDllName.Buffer, out_ldr_simple[idx].name);
+        printf("Entry Point: 0x%" PRIx64 "\n", (uint64_t)data->EntryPoint);
+        unicode_to_asci_str(out_ldr_simple[idx].name, data->FullDllName.Buffer);
+        idx++;
     }
+    return idx;
 }
 
-
 // only for testing
-#include "stdio.h"
 
 static const char __attribute__((section(".text"))) big_string[] = "Hello World\n";
 
-int main() {
-    
+#define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
 
+int main() {
+    PEB* peb = get_peb();
+    LdrSimpleEntry simple_ldr[16];
+    unsigned int simple_ldr_length = build_simple_ldr(peb, simple_ldr);
+    void* self = simple_ldr[0].base;
+    void* kernel = NULL;
+    for (int i = 0; i < simple_ldr_length; i++) {
+        if (!str_is_equal(simple_ldr[i].name, "kernel32.dll", str_len("kernel32.dll"))) {
+             continue;
+        }
+        kernel = simple_ldr[i].base;
+    }
+    printf("self: 0x%" PRIx64 "\n", (uint64_t)self);
+    printf("kernel: 0x%" PRIx64 "\n", (uint64_t)kernel);
     return 0;
 }
