@@ -1,203 +1,90 @@
-#include "inttypes.h"
-#include "stdbool.h"
-#include "stddef.h"
+#include "ProcessLib.h"
 
-typedef struct {
-  uint16_t  Length;
-  uint16_t  MaximumLength;
-  wchar_t*  Buffer;
-} UNICODE_STRING;
+#define WIN_LIBRARY_START 0
+#define WIN_FUNCTION_START 2
 
-typedef struct _LIST_ENTRY {
-   struct _LIST_ENTRY *Flink;
-   struct _LIST_ENTRY *Blink;
-} LIST_ENTRY;
+#define WIN_kernel32 WIN_LIBRARY_START + 0
+#define WIN_user32 WIN_LIBRARY_START + 1
 
-typedef struct {
-    void* Reserved1[2];
-    LIST_ENTRY InMemoryOrderLinks;
-    void* Reserved2[2];
-    void* DllBase;
-    void* EntryPoint;
-    void* Reserved3;
-    UNICODE_STRING FullDllName;
-    uint8_t Reserved4[8];
-    void* Reserved5[3];
-    union {
-        uint32_t CheckSum;
-        void* Reserved6;
-    };
-    uint32_t TimeDateStamp;
-} LDR_DATA_TABLE_ENTRY;
+#define WIN_GetModuleHandle WIN_FUNCTION_START + 0
+#define WIN_GetProcAddress WIN_FUNCTION_START + 1
+#define WIN_LoadLibrary WIN_FUNCTION_START + 2
+#define WIN_FreeLibrary WIN_FUNCTION_START + 3
+#define WIN_VirtualAlloc WIN_FUNCTION_START + 4
+#define WIN_VirtualProtect WIN_FUNCTION_START + 5
+#define WIN_MessageBox WIN_FUNCTION_START + 6
 
-typedef struct {
-  uint8_t       Reserved1[8];
-  void*      Reserved2[3];
-  LIST_ENTRY InMemoryOrderModuleList;
-} PEB_LDR_DATA;
+const char __attribute__((section(".text#"))) literal[] = 
+    "kernel32.dll\0user32.dll\0" // libraries
+    "GetModuleHandleA\0GetProcAddress\0LoadLibraryA\0FreeLibrary\0VirtualAllocA\0VirtualProtect\0MessageBoxA\0"; // functions
 
-typedef struct {
-  uint8_t           Reserved1[16];
-  void*          Reserved2[10];
-  UNICODE_STRING ImagePathName;
-  UNICODE_STRING CommandLine;
-} RTL_USER_PROCESS_PARAMETERS, *PRTL_USER_PROCESS_PARAMETERS;
-
-typedef void (__stdcall *PPS_POST_PROCESS_INIT_ROUTINE)(void); // this function is undocumented and so is just assumed to be null
-
-typedef struct {
-  uint8_t                           Reserved1[2];
-  uint8_t                           BeingDebugged;
-  uint8_t                           Reserved2[1];
-  void*                             Reserved3[2];
-  PEB_LDR_DATA*                     Ldr;
-  RTL_USER_PROCESS_PARAMETERS*  ProcessParameters;
-  void*                         Reserved4[3];
-  void*                         AtlThunkSListPtr;
-  void*                         Reserved5;
-  uint32_t                         Reserved6;
-  void*                         Reserved7;
-  uint32_t                         Reserved8;
-  uint32_t                         AtlThunkSListPtr32;
-  void*                         Reserved9[45];
-  uint8_t                          Reserved10[96];
-  PPS_POST_PROCESS_INIT_ROUTINE PostProcessInitRoutine;
-  uint8_t                          Reserved11[128];
-  void*                         Reserved12[1];
-  uint32_t                         SessionId;
-} PEB;
-
-typedef struct {
-  void* Reserved1[12];
-  PEB*  ProcessEnvironmentBlock;
-  void* Reserved2[399];
-  uint8_t  Reserved3[1952];
-  void* TlsSlots[64];
-  uint8_t  Reserved4[8];
-  void* Reserved5[26];
-  void* ReservedForOle;
-  void* Reserved6[4];
-  void* TlsExpansionSlots;
-} TEB;
-
-typedef uint16_t WORD;
-typedef uint32_t DWORD;
-typedef int32_t LONG;
-typedef uint8_t BYTE;
-typedef uint64_t ULONGLONG;
-typedef char CHAR;
-
-typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
-    WORD   e_magic;                     // Magic number
-    WORD   e_cblp;                      // Bytes on last page of file
-    WORD   e_cp;                        // Pages in file
-    WORD   e_crlc;                      // Relocations
-    WORD   e_cparhdr;                   // Size of header in paragraphs
-    WORD   e_minalloc;                  // Minimum extra paragraphs needed
-    WORD   e_maxalloc;                  // Maximum extra paragraphs needed
-    WORD   e_ss;                        // Initial (relative) SS value
-    WORD   e_sp;                        // Initial SP value
-    WORD   e_csum;                      // Checksum
-    WORD   e_ip;                        // Initial IP value
-    WORD   e_cs;                        // Initial (relative) CS value
-    WORD   e_lfarlc;                    // File address of relocation table
-    WORD   e_ovno;                      // Overlay number
-    WORD   e_res[4];                    // Reserved words
-    WORD   e_oemid;                     // OEM identifier (for e_oeminfo)
-    WORD   e_oeminfo;                   // OEM information; e_oemid specific
-    WORD   e_res2[10];                  // Reserved words
-    LONG   e_lfanew;                    // File address of new exe header
-} IMAGE_DOS_HEADER, *PIMAGE_DOS_HEADER;
-
-// asm functions
-extern TEB* get_teb(void);
-extern PEB* get_peb(void);
-
-// process structs
-
-typedef struct {
-    char name[64];
-    void* base;
-} LdrSimpleEntry;
-
-unsigned int str_len(const char* str) {
-    unsigned int length = 0;
-    while (str[length] != '\0') {
-        length++;
-    }
-    return length;
-}
-
-unsigned int unicode_str_len(const wchar_t* str) {
-    unsigned int length = 0;
-    while (str[length] != '\0') {
-        length++;
-    }
-    return length;
-}
-
-bool str_is_equal(const char* str1, const char* str2, unsigned int length) {
-    for (int i = 0; i < length; i++) {
-        if (str1[i] != str2[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-
-void mem_copy(void* destination, const void* source, unsigned int length) {
-    for (int i = 0; i < length; i++) {
-        ((char*)destination)[i] = ((const char*)source)[i];
-    }
-}
-
-void str_copy(char* destination, const char* source) {
-    unsigned int length = str_len(source);
-    mem_copy(destination, source, length + 1);
-}
-
-void unicode_to_asci_str(char* destination, const wchar_t* source) {
-    unsigned int unicode_length = unicode_str_len(source);
-    for (int  i = 0; i < unicode_length + 1; i++) {
-        destination[i] = (char)source[i];
-    }
-}
-
-#include "stdio.h"
-
-unsigned int build_simple_ldr(PEB* peb, LdrSimpleEntry* out_ldr_simple) {
-    LIST_ENTRY* head = &peb->Ldr->InMemoryOrderModuleList;
-    LIST_ENTRY* current = head;
+const char* to_literal(unsigned int literal_idx) {
     unsigned int idx = 0;
-    while ((current = current->Flink) != head) {
-        LDR_DATA_TABLE_ENTRY* data = (LDR_DATA_TABLE_ENTRY*)current;
-        out_ldr_simple[idx].base = data->DllBase;
-        printf("Entry Point: 0x%" PRIx64 "\n", (uint64_t)data->EntryPoint);
-        unicode_to_asci_str(out_ldr_simple[idx].name, data->FullDllName.Buffer);
+    for (int i = 0; i < literal_idx; i++) {
+        while (literal[idx] != '\0') {
+            idx++;
+        }
         idx++;
     }
-    return idx;
+    return literal + idx;
 }
 
-// only for testing
+typedef void* HMODULE;
+typedef void* FARPROC;
+typedef void* FILE;
 
-static const char __attribute__((section(".text"))) big_string[] = "Hello World\n";
+typedef HMODULE (__stdcall *get_module_handle_functype)(const char* name);
+typedef FARPROC (__stdcall *get_proc_address_functype)(HMODULE module, const char* name);
+typedef HMODULE (__stdcall *load_library_functype)(const char* name);
+typedef bool (__stdcall *free_library_functype)(HMODULE module);
+typedef void* (__stdcall *virtual_alloc_functype)(void* address, int64_t size, uint32_t allocation_type, uint32_t protect); // address is optional
+typedef bool (__stdcall *virtual_protect_functype)(void* address, int64_t size, uint32_t new_protect, uint32_t* old_protect);
 
-#define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
+#define MB_OK 0x00000000L
+#define MB_INFO 0x00000040L 
+#define MB_WARNING 0x00000030L
+#define MB_ERROR 0x00000010L
+typedef int(__stdcall *message_box_functype)(void* window, const char* text, const char* caption, uint32_t type);
 
-int main() {
+int fputs_payload(const char* str, FILE fd) {
     PEB* peb = get_peb();
     LdrSimpleEntry simple_ldr[16];
     unsigned int simple_ldr_length = build_simple_ldr(peb, simple_ldr);
     void* self = simple_ldr[0].base;
     void* kernel = NULL;
+    const char* kernel32_literal = to_literal(WIN_kernel32);
     for (int i = 0; i < simple_ldr_length; i++) {
-        if (!str_is_equal(simple_ldr[i].name, "kernel32.dll", str_len("kernel32.dll"))) {
+        if (!str_ends_with(simple_ldr[i].name, kernel32_literal, str_len(simple_ldr[i].name), str_len(kernel32_literal))) {
              continue;
         }
         kernel = simple_ldr[i].base;
     }
-    printf("self: 0x%" PRIx64 "\n", (uint64_t)self);
-    printf("kernel: 0x%" PRIx64 "\n", (uint64_t)kernel);
+    KernelParseResult kernel_parse_result = {0};
+    parse_kernel(kernel, &kernel_parse_result,
+            to_literal(WIN_GetModuleHandle),
+            to_literal(WIN_GetProcAddress),
+            to_literal(WIN_LoadLibrary),
+            to_literal(WIN_FreeLibrary),
+            to_literal(WIN_VirtualAlloc),
+            to_literal(WIN_VirtualProtect));
+    get_module_handle_functype get_module_handle = kernel_parse_result.get_module_handle_ptr;
+    get_proc_address_functype get_proc_address = kernel_parse_result.get_proc_address_ptr;
+    load_library_functype load_library = kernel_parse_result.load_library_ptr;
+    free_library_functype free_library = kernel_parse_result.free_library_ptr;
+    virtual_alloc_functype virtual_alloc = kernel_parse_result.virtual_alloc_ptr;
+    virtual_protect_functype virtual_protect = kernel_parse_result.virtual_protect_ptr;
+
+    HMODULE user32_module = load_library(to_literal(WIN_user32));
+    if (user32_module == NULL) {
+        return 1;
+    }
+    message_box_functype message_box = get_proc_address(user32_module, to_literal(WIN_MessageBox));
+    if (message_box == NULL) {
+        return 1;
+    }
+    const char empty = '\0';
+    message_box(NULL, kernel32_literal, &empty, MB_INFO);
+
+
     return 0;
 }
