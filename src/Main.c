@@ -233,7 +233,7 @@ unsigned char venom[] =
     JumpTable* jump_table;
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 128;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 4096;
-    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000 * 100;
+    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000 * 4;
     const char* EXECUTABLE_FILENAME = "test/simple64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
 

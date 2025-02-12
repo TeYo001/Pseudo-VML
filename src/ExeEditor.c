@@ -25,12 +25,19 @@ IMAGE_SECTION_HEADER* build_new_section_push_back(ExeInfo* exe_info, SectionBuil
     new_header->Characteristics = new_section->characteristics;
     new_header->PointerToRawData = align_up(exe_info->file_size, exe_info->nt_header->OptionalHeader.FileAlignment);
     new_header->PointerToRawData += exe_info->nt_header->OptionalHeader.FileAlignment * extra_file_padding_count;
-    new_header->VirtualAddress = align_up(exe_info->nt_header->OptionalHeader.SizeOfImage,
-            exe_info->nt_header->OptionalHeader.SectionAlignment);
-    new_header->VirtualAddress += exe_info->nt_header->OptionalHeader.SectionAlignment * extra_virtual_padding_count;
+    
+    IMAGE_SECTION_HEADER* last_section = exe_info->all_sections[exe_info->nt_header->FileHeader.NumberOfSections - 1];
+    new_header->VirtualAddress = align_up(last_section->VirtualAddress + last_section->Misc.VirtualSize, exe_info->nt_header->OptionalHeader.SectionAlignment);
+    // OLD WAY I USED TO DO THIS
+    //    align_up(exe_info->nt_header->OptionalHeader.SizeOfImage,
+    //        exe_info->nt_header->OptionalHeader.SectionAlignment);
+    
+    // THIS SHOULDN'T BE DONE ANYMORE
+    //new_header->VirtualAddress += exe_info->nt_header->OptionalHeader.SectionAlignment * extra_virtual_padding_count;
 
-    printf("NEW HEADER: %u\n", new_header->SizeOfRawData);
-    printf("NEW HEADER: %u\n", new_header->Misc.VirtualSize);
+    printf("NEW HEADER raw size: 0x%" PRIx32 "\n", new_header->SizeOfRawData);
+    printf("NEW HEADER virtual size: 0x%" PRIx32 "\n", new_header->Misc.VirtualSize);
+    printf("NEW HEADER virtual address: 0x%" PRIx32 "\n", new_header->VirtualAddress);
 
     return new_header;
 }
