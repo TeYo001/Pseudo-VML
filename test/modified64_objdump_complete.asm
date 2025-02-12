@@ -1754,9 +1754,8 @@ Disassembly of section .text:
    14000266f:	90                   	nop
 
 0000000140002670 <fputs>:
-   140002670:	ff 25 f6 5b 00 00    	jmp    *0x5bf6(%rip)        # 14000826c <__imp_fputs>
-   140002676:	90                   	nop
-   140002677:	90                   	nop
+   140002670:	e9 fa b3 04 00       	jmp    14004da6f <.debug_ranges+0x177f>
+   140002675:	00 90 90       	add    %dl,-0x19da0070(%rax)
 
 0000000140002678 <fprintf>:
    140002678:	ff 25 e6 5b 00 00    	jmp    *0x5be6(%rip)        # 140008264 <__imp_fprintf>
