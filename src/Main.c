@@ -233,7 +233,7 @@ unsigned char venom[] =
     JumpTable* jump_table;
     const unsigned int MAX_INSTRUCTION_COUNT = 4096 * 128;
     const unsigned int MAX_JUMP_FUNCTION_COUNT = 4096;
-    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000 * 4;
+    const unsigned int NEW_SECTION_RAW_DATA_SIZE = 0x1000 * 100;
     const char* EXECUTABLE_FILENAME = "test/simple64.exe";
     const char* MODIFIED_EXECUTABLE_FILENAME = "test/modified64.exe";
 
@@ -278,14 +278,11 @@ unsigned char venom[] =
     } 
 
     // put processor in payload
-    unsigned int entry_point_offset = 0;
-    /*
+    unsigned int entry_point_offset = 0; 
     {
         entry_point_offset = build_single_processor(payload_buffer, "build/Process.dll", "fputs_payload");
     }
-    */
 
-    /*
     // change call to jump instruction
     {
         unsigned int call_inst_idx = 1607;
@@ -302,7 +299,6 @@ unsigned char venom[] =
         printf("clearing length: %u\n", clearing_length);
         print_hex(inst->raw_data, inst->data_length);
     }
-    */
 
     section_push_back(exe_info, mod_table, &new_section, new_header);
 
