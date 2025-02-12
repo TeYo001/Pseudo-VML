@@ -80,7 +80,7 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
             const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
             printf("\'%s\' from: \'%s\' call at op idx: %u\n", func_name, dll_name, i);
         } else if (iclass == XED_ICLASS_JMP || modrm == 0x25) {
-            // NOTE(TeYo): Then ever you se this, it's probably from a reference table before the IAT
+            // NOTE(TeYo): When ever you se this, it's probably from a reference table before the IAT
             uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
             int64_t dest_va = rel32 + exe_info->text_section->VirtualAddress  + ptr + 6;
             if (!(dest_va >= jump_table->iat_start_virtual_address &&
