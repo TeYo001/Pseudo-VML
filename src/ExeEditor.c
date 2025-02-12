@@ -45,7 +45,7 @@ void section_push_back(ExeInfo* exe_info, ModTable* mod_table, SectionBuildInfo*
     new_nt_header->FileHeader.NumberOfSections += 1;
     
     // NOTE(TeYo): I originally added this for debug purposes, but now it's just kinda here (unsure if it's needed)
-    //new_nt_header->FileHeader.Characteristics = new_nt_header->FileHeader.Characteristics | IMAGE_FILE_DEBUG_STRIPPED;
+    new_nt_header->FileHeader.Characteristics = new_nt_header->FileHeader.Characteristics | IMAGE_FILE_DEBUG_STRIPPED;
 
     add_mod_entry_replace(mod_table, exe_info->dos_header->e_lfanew, (char*)new_nt_header, sizeof(IMAGE_NT_HEADERS64));
     add_mod_entry_replace(mod_table, 
