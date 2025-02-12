@@ -40,6 +40,8 @@ void section_push_back(ExeInfo* exe_info, ModTable* mod_table, SectionBuildInfo*
     memcpy(new_nt_header, exe_info->nt_header, sizeof(IMAGE_NT_HEADERS64));
     new_nt_header->OptionalHeader.SizeOfImage = new_header->VirtualAddress + new_header->Misc.VirtualSize;
     printf("NEW IMAGE SIZE: 0x%" PRIx32 "\n", new_nt_header->OptionalHeader.SizeOfImage);
+    new_nt_header->OptionalHeader.SizeOfInitializedData += new_header->SizeOfRawData;
+    printf("NEW IMAGE INITIALIZED DATA SIZE: 0x%" PRIx32 "\n", new_nt_header->OptionalHeader.SizeOfInitializedData);
         //align_up(new_header->VirtualAddress + new_header->Misc.VirtualSize,
         //    exe_info->nt_header->OptionalHeader.SectionAlignment);
     new_nt_header->FileHeader.NumberOfSections += 1;

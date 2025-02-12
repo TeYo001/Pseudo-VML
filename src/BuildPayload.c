@@ -21,7 +21,7 @@ unsigned int build_single_processor(char* payload_buffer, const char* processor_
     FILE* fd = fopen(processor_filename, "r");
     if (fd == NULL) {
         printf("ERROR\n");
-        return;
+        exit(1);
     }
     unsigned int file_size = get_file_size(processor_filename);
     printf("file size: %u\n", file_size);
