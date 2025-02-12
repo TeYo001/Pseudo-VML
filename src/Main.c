@@ -279,9 +279,11 @@ unsigned char venom[] =
 
     // put processor in payload
     unsigned int entry_point_offset = 0; 
+    /*
     {
         entry_point_offset = build_single_processor(payload_buffer, "build/Process.dll", "fputs_payload");
     }
+    */
 
     // change call to jump instruction
     {
