@@ -78,7 +78,8 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
             JumpFunction* jump_func = &jump_table->jump_functions[jump_func_idx];
             const char* dll_name = jump_func->from_dll->name;
             const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
-            printf("\'%s\' from: \'%s\' call at op idx: %u\n", func_name, dll_name, i);
+            unsigned int file_offset = exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[i];
+            printf("\'%s\' from: \'%s\' call at op idx: %u and file offset: 0x%" PRIx32 "\n", func_name, dll_name, i, file_offset);
         } else if (iclass == XED_ICLASS_JMP || modrm == 0x25) {
             // NOTE(TeYo): When ever you se this, it's probably from a reference table before the IAT
             uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
@@ -91,7 +92,8 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
             JumpFunction* jump_func = &jump_table->jump_functions[jump_func_idx];
             const char* dll_name = jump_func->from_dll->name;
             const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
-            printf("\'%s\' from: \'%s\' call at op idx: %u\n", func_name, dll_name, i);
+            unsigned int file_offset = exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[i];
+            printf("\'%s\' from: \'%s\' call at op idx: %u and file offset: 0x%" PRIx32 "\n", func_name, dll_name, i, file_offset);
         }
     }
 

