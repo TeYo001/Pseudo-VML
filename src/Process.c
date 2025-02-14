@@ -95,7 +95,6 @@ int fputs_payload(const char* str, FILE fd) {
 #include "inttypes.h"
 #include "stdbool.h"
 #include "stddef.h"
-#include "string.h"
 
 typedef uint16_t WORD;
 typedef uint32_t DWORD;
@@ -319,19 +318,55 @@ typedef struct _IMAGE_EXPORT_DIRECTORY {
     DWORD   AddressOfNameOrdinals;  // RVA from base of image
 } IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
 
-typedef struct {
-  uint16_t  Length;
-  uint16_t  MaximumLength;
-  wchar_t*  Buffer;
-} UNICODE_STRING;
-
 extern void* get_kernel32_base_address();
 
+typedef struct {
+    // base addresses
+    void* pvml;
+    void* kernel32;
+    void* user32;
+
+    // functions
+    void* get_proc_address;
+    void* load_library;
+    void* exit_process;
+    void* virtual_alloc;
+    void* virtual_free;
+    void* message_box;
+} PayloadInfo;
+
+bool str_cmp(const char* str1, const char* str2) {
+    unsigned int i = 0;
+    while (str1[i] == str2[i]) {
+        if (str1[i] == '\0') {
+            return true;
+        }
+        i++;
+    }
+    return false;
+}
+
+#define GetProcAddress_idx 0
+#define LoadLibraryA_idx GetProcAddress_idx + 15
+#define ExitProcess_idx LoadLibraryA_idx + 13
+#define VirtualAlloc_idx ExitProcess_idx + 12
+#define VirtualFree_idx VirtualAlloc_idx + 13
+#define MessageBoxA_idx VirtualFree_idx + 12
+static const char* __attribute__((section(".text#"))) big_str = "GetProcAddress\0LoadLibraryA\0ExitProcess\0VirtualAlloc\0VirtualFree\0MessageBoxA";
+
+typedef void* (*GetProcAddress_functype)(void* module, const char* name);
+typedef void* (*LoadLibraryA_functype)(const char* name);
+typedef int (*MessageBoxA_functype)(void* window, const char* text, const char* caption, unsigned int type);
+
 int main() {
+    PayloadInfo info = {0};
+
     IMAGE_DOS_HEADER* dos_header = get_kernel32_base_address();
     IMAGE_NT_HEADERS64* nt_header = ((void*)dos_header + dos_header->e_lfanew);
     unsigned int va = nt_header->OptionalHeader.DataDirectory[0].VirtualAddress;
     IMAGE_EXPORT_DIRECTORY* iat = (void*)dos_header + va;
+    
+    info.kernel32 = (void*)dos_header;
 
     if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
         printf("ERROR\n");
@@ -341,27 +376,49 @@ int main() {
         printf("ERROR\n");
         return 1;
     }
-
-    printf("va: 0x%" PRIx32 "\n", va);
-    printf("name count: %u\n", iat->NumberOfNames);
     
     uint32_t* func_address_table = (uint32_t*)((void*)dos_header + iat->AddressOfFunctions);
     uint32_t* name_table = (uint32_t*)((void*)dos_header + iat->AddressOfNames);
     uint16_t* name_ordinal_table = (uint16_t*)((void*)dos_header + iat->AddressOfNameOrdinals);
 
+    GetProcAddress_functype get_proc_address = NULL;
+    LoadLibraryA_functype load_library = NULL;
+
     unsigned int name_count = iat->NumberOfNames;
     for (unsigned int i = 0; i < name_count; i++) {
         uint16_t ordinal = name_ordinal_table[i];
-        //printf("ordinal: %" PRIu16 "\n", ordinal);
-        //printf("addr: 0x%" PRIx32 "\n", func_address_table[i]);
         const char* name = (void*)dos_header + name_table[i];
-        if (strcmp(name,"GetProcAddress") == 0) {
-            printf("FOUND\n");
+        if (str_cmp(name, &big_str[GetProcAddress_idx])) {
             printf("name: %s\n", name);
+            get_proc_address = ((void*)dos_header + func_address_table[ordinal]);
+            printf("get proc: 0x%" PRIx64 "\n", (uint64_t)get_proc_address);
+        }
+        else if (str_cmp(name, &big_str[LoadLibraryA_idx])) {
+            printf("name: %s\n", name);
+            load_library = (void*)((void*)dos_header + func_address_table[ordinal]);
+            printf("load lib: 0x%" PRIx64 "\n", (uint64_t)load_library);
+        }
+        else if (str_cmp(name, &big_str[ExitProcess_idx])) {
+            printf("name: %s\n", name);
+        }
+        else if (str_cmp(name, "VirtualAlloc")) {
+
+        }
+        else if (str_cmp(name, "VirtualFree")) {
+            
         }
         //printf("name: %s\n", name);
     }
-
+    
+    void* user32_dll = load_library("user32.dll");
+    printf("user32: 0x%" PRIx64 "\n", (uint64_t)user32_dll);
+    MessageBoxA_functype message_box = get_proc_address(user32_dll, "MessageBoxA");
+    printf("message box: 0x%" PRIx64 "\n", (uint64_t)message_box);
+    if (message_box == NULL) {
+        printf("ERROR\n");
+        return 1;
+    }
+    message_box(NULL, "I am evil", NULL, 0);
 
     return 0;
 }
