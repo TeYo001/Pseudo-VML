@@ -1,3 +1,4 @@
+/*
 #include "ProcessLib.h"
 
 #define WIN_LIBRARY_START 0
@@ -84,6 +85,282 @@ int fputs_payload(const char* str, FILE fd) {
     }
     const char empty = '\0';
     message_box(NULL, kernel32_literal, &empty, MB_INFO);
+
+
+    return 0;
+}
+*/
+
+#include "stdio.h"
+#include "inttypes.h"
+#include "stdbool.h"
+#include "stddef.h"
+#include "string.h"
+
+typedef uint16_t WORD;
+typedef uint32_t DWORD;
+typedef int32_t LONG;
+typedef uint8_t BYTE;
+typedef uint64_t ULONGLONG;
+typedef char CHAR;
+
+#define IMAGE_NUMBEROF_DIRECTORY_ENTRIES    16
+#define IMAGE_SIZEOF_SHORT_NAME              8
+
+#define EXPORT_TABLE_DIRECTORY_ENTRY 0
+#define IMPORT_TABLE_DIRECTORY_ENTRY 1
+#define RESOURCE_TABLE_DIRECTORY_ENTRY 2
+#define EXCEPTION_TABLE_DIRECTORY_ENTRY 3
+#define ATTRIBUTE_CERTIFICATE_TABLE_ENTRY 4
+#define BASE_RELOCATION_TABLE_ENTRY 5
+#define DEBUG_DATA_TABLE_ENTRY 6
+#define ARCHITECTURE_TABLE_ENTRY 7
+#define GLOBAL_POINTER_TABLE_ENTRY 8
+#define THREAD_LOCAL_STORAGE_TABLE_ENTRY 9
+#define LOAD_CONFIGURATION_TABLE_ENTRY 10
+#define BOUND_IMPORT_TABLE_ENTRY 11
+#define IMPORT_ADDRESS_TABLE_ENTRY 12
+#define DELAY_IMPORT_DESCRIPTOR_ENTRY 13
+#define COM_RUNTIME_HEADER_ENTRY 14
+#define RESERVED_ENTRY 15
+
+#define IMAGE_DOS_SIGNATURE                 0x5A4D      // MZ
+#define IMAGE_NT_SIGNATURE                  0x00004550  // PE00
+
+typedef struct _IMAGE_DOS_HEADER {      // DOS .EXE header
+    WORD   e_magic;                     // Magic number
+    WORD   e_cblp;                      // Bytes on last page of file
+    WORD   e_cp;                        // Pages in file
+    WORD   e_crlc;                      // Relocations
+    WORD   e_cparhdr;                   // Size of header in paragraphs
+    WORD   e_minalloc;                  // Minimum extra paragraphs needed
+    WORD   e_maxalloc;                  // Maximum extra paragraphs needed
+    WORD   e_ss;                        // Initial (relative) SS value
+    WORD   e_sp;                        // Initial SP value
+    WORD   e_csum;                      // Checksum
+    WORD   e_ip;                        // Initial IP value
+    WORD   e_cs;                        // Initial (relative) CS value
+    WORD   e_lfarlc;                    // File address of relocation table
+    WORD   e_ovno;                      // Overlay number
+    WORD   e_res[4];                    // Reserved words
+    WORD   e_oemid;                     // OEM identifier (for e_oeminfo)
+    WORD   e_oeminfo;                   // OEM information; e_oemid specific
+    WORD   e_res2[10];                  // Reserved words
+    LONG   e_lfanew;                    // File address of new exe header
+} IMAGE_DOS_HEADER, *PIMAGE_DOS_HEADER;
+
+typedef struct _IMAGE_SECTION_HEADER {
+    BYTE    Name[IMAGE_SIZEOF_SHORT_NAME];
+    union {
+            DWORD   PhysicalAddress;
+            DWORD   VirtualSize;
+    } Misc;
+    DWORD   VirtualAddress;
+    DWORD   SizeOfRawData;
+    DWORD   PointerToRawData; // NOTE(TeYo): Must be divisible by 64 (will therefore usually be a little smaller then the actual PointerToRawData) (very annoying)
+    DWORD   PointerToRelocations;
+    DWORD   PointerToLinenumbers;
+    WORD    NumberOfRelocations;
+    WORD    NumberOfLinenumbers;
+    DWORD   Characteristics;
+} IMAGE_SECTION_HEADER, *PIMAGE_SECTION_HEADER;
+
+typedef struct _IMAGE_DATA_DIRECTORY {
+    DWORD   VirtualAddress;
+    DWORD   Size;
+} IMAGE_DATA_DIRECTORY, *PIMAGE_DATA_DIRECTORY;
+
+typedef struct _IMAGE_OPTIONAL_HEADER {
+    //
+    // Standard fields.
+    //
+
+    WORD    Magic;
+    BYTE    MajorLinkerVersion;
+    BYTE    MinorLinkerVersion;
+    DWORD   SizeOfCode;
+    DWORD   SizeOfInitializedData;
+    DWORD   SizeOfUninitializedData;
+    DWORD   AddressOfEntryPoint;
+    DWORD   BaseOfCode;
+    DWORD   BaseOfData;
+
+    //
+    // NT additional fields.
+    //
+
+    DWORD   ImageBase;
+    DWORD   SectionAlignment;
+    DWORD   FileAlignment;
+    WORD    MajorOperatingSystemVersion;
+    WORD    MinorOperatingSystemVersion;
+    WORD    MajorImageVersion;
+    WORD    MinorImageVersion;
+    WORD    MajorSubsystemVersion;
+    WORD    MinorSubsystemVersion;
+    DWORD   Win32VersionValue;
+    DWORD   SizeOfImage;
+    DWORD   SizeOfHeaders;
+    DWORD   CheckSum;
+    WORD    Subsystem;
+    WORD    DllCharacteristics;
+    DWORD   SizeOfStackReserve;
+    DWORD   SizeOfStackCommit;
+    DWORD   SizeOfHeapReserve;
+    DWORD   SizeOfHeapCommit;
+    DWORD   LoaderFlags;
+    DWORD   NumberOfRvaAndSizes;
+    IMAGE_DATA_DIRECTORY DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
+} IMAGE_OPTIONAL_HEADER32, *PIMAGE_OPTIONAL_HEADER32;
+
+typedef struct _IMAGE_OPTIONAL_HEADER64 {
+    WORD        Magic;
+    BYTE        MajorLinkerVersion;
+    BYTE        MinorLinkerVersion;
+    DWORD       SizeOfCode;
+    DWORD       SizeOfInitializedData;
+    DWORD       SizeOfUninitializedData;
+    DWORD       AddressOfEntryPoint;
+    DWORD       BaseOfCode;
+    ULONGLONG   ImageBase;
+    DWORD       SectionAlignment;
+    DWORD       FileAlignment;
+    WORD        MajorOperatingSystemVersion;
+    WORD        MinorOperatingSystemVersion;
+    WORD        MajorImageVersion;
+    WORD        MinorImageVersion;
+    WORD        MajorSubsystemVersion;
+    WORD        MinorSubsystemVersion;
+    DWORD       Win32VersionValue;
+    DWORD       SizeOfImage;
+    DWORD       SizeOfHeaders;
+    DWORD       CheckSum;
+    WORD        Subsystem;
+    WORD        DllCharacteristics;
+    ULONGLONG   SizeOfStackReserve;
+    ULONGLONG   SizeOfStackCommit;
+    ULONGLONG   SizeOfHeapReserve;
+    ULONGLONG   SizeOfHeapCommit;
+    DWORD       LoaderFlags;
+    DWORD       NumberOfRvaAndSizes;
+    IMAGE_DATA_DIRECTORY DataDirectory[IMAGE_NUMBEROF_DIRECTORY_ENTRIES];
+} IMAGE_OPTIONAL_HEADER64, *PIMAGE_OPTIONAL_HEADER64;
+
+typedef struct _IMAGE_FILE_HEADER {
+    WORD    Machine;
+    WORD    NumberOfSections;
+    DWORD   TimeDateStamp;
+    DWORD   PointerToSymbolTable;
+    DWORD   NumberOfSymbols;
+    WORD    SizeOfOptionalHeader;
+    WORD    Characteristics;
+} IMAGE_FILE_HEADER, *PIMAGE_FILE_HEADER;
+
+typedef struct _IMAGE_NT_HEADERS64 {
+    DWORD Signature;
+    IMAGE_FILE_HEADER FileHeader;
+    IMAGE_OPTIONAL_HEADER64 OptionalHeader;
+} IMAGE_NT_HEADERS64, *PIMAGE_NT_HEADERS64;
+
+
+typedef struct _IMAGE_NT_HEADERS {
+    DWORD Signature;
+    IMAGE_FILE_HEADER FileHeader;
+    IMAGE_OPTIONAL_HEADER32 OptionalHeader;
+} IMAGE_NT_HEADERS32, *PIMAGE_NT_HEADERS32;
+
+typedef struct _IMAGE_IMPORT_DESCRIPTOR {
+    union {
+        DWORD   Characteristics;
+        DWORD   OriginalFirstThunk;
+    } DUMMYUNIONNAME;
+    DWORD   TimeDateStamp;
+    DWORD   ForwarderChain;
+    DWORD   Name;
+    DWORD   FirstThunk;
+} IMAGE_IMPORT_DESCRIPTOR;
+
+typedef struct _IMAGE_THUNK_DATA64 {
+    union {
+        ULONGLONG ForwarderString;  // PBYTE 
+        ULONGLONG Function;         // PDWORD
+        ULONGLONG Ordinal;
+        ULONGLONG AddressOfData;    // PIMAGE_IMPORT_BY_NAME
+    } u1;
+} IMAGE_THUNK_DATA64;
+typedef IMAGE_THUNK_DATA64 * PIMAGE_THUNK_DATA64;
+
+typedef struct _IMAGE_THUNK_DATA32 {                               
+    union {
+        DWORD ForwarderString;      // PBYTE 
+        DWORD Function;             // PDWORD
+        DWORD Ordinal;
+        DWORD AddressOfData;        // PIMAGE_IMPORT_BY_NAME
+    } u1;
+} IMAGE_THUNK_DATA32;
+typedef IMAGE_THUNK_DATA32 * PIMAGE_THUNK_DATA32;
+
+typedef struct _IMAGE_IMPORT_BY_NAME {
+    WORD    Hint;
+    CHAR   Name[1];
+} IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
+
+typedef struct _IMAGE_EXPORT_DIRECTORY {
+    DWORD   Characteristics;
+    DWORD   TimeDateStamp;
+    WORD    MajorVersion;
+    WORD    MinorVersion;
+    DWORD   Name;
+    DWORD   Base;
+    DWORD   NumberOfFunctions;
+    DWORD   NumberOfNames;
+    DWORD   AddressOfFunctions;     // RVA from base of image
+    DWORD   AddressOfNames;         // RVA from base of image
+    DWORD   AddressOfNameOrdinals;  // RVA from base of image
+} IMAGE_EXPORT_DIRECTORY, *PIMAGE_EXPORT_DIRECTORY;
+
+typedef struct {
+  uint16_t  Length;
+  uint16_t  MaximumLength;
+  wchar_t*  Buffer;
+} UNICODE_STRING;
+
+extern void* get_kernel32_base_address();
+
+int main() {
+    IMAGE_DOS_HEADER* dos_header = get_kernel32_base_address();
+    IMAGE_NT_HEADERS64* nt_header = ((void*)dos_header + dos_header->e_lfanew);
+    unsigned int va = nt_header->OptionalHeader.DataDirectory[0].VirtualAddress;
+    IMAGE_EXPORT_DIRECTORY* iat = (void*)dos_header + va;
+
+    if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
+        printf("ERROR\n");
+        return 1;
+    }
+    if (nt_header->Signature != IMAGE_NT_SIGNATURE) {
+        printf("ERROR\n");
+        return 1;
+    }
+
+    printf("va: 0x%" PRIx32 "\n", va);
+    printf("name count: %u\n", iat->NumberOfNames);
+    
+    uint32_t* func_address_table = (uint32_t*)((void*)dos_header + iat->AddressOfFunctions);
+    uint32_t* name_table = (uint32_t*)((void*)dos_header + iat->AddressOfNames);
+    uint16_t* name_ordinal_table = (uint16_t*)((void*)dos_header + iat->AddressOfNameOrdinals);
+
+    unsigned int name_count = iat->NumberOfNames;
+    for (unsigned int i = 0; i < name_count; i++) {
+        uint16_t ordinal = name_ordinal_table[i];
+        //printf("ordinal: %" PRIu16 "\n", ordinal);
+        //printf("addr: 0x%" PRIx32 "\n", func_address_table[i]);
+        const char* name = (void*)dos_header + name_table[i];
+        if (strcmp(name,"GetProcAddress") == 0) {
+            printf("FOUND\n");
+            printf("name: %s\n", name);
+        }
+        //printf("name: %s\n", name);
+    }
 
 
     return 0;

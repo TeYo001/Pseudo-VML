@@ -229,6 +229,12 @@ int main(int argc, char** argv)
             nob_cmd_append(&cmd, "-o", "build/Process.dll", "build/Process.o", "build/AsmPayload.o", "build/ProcessLib.o");
             if (!nob_cmd_run_sync(cmd)) return 1;
         }
+        {
+            Nob_Cmd cmd = {0};
+            nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
+            nob_cmd_append(&cmd, "-o", "build/ProcessTest.exe", "build/Process.o", "build/AsmPayload.o", "build/ProcessLib.o");
+            if (!nob_cmd_run_sync(cmd)) return 1;
+        }
     }
 
     // Compile PreProcess
