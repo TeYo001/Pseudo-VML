@@ -91,10 +91,10 @@ int fputs_payload(const char* str, FILE fd) {
 }
 */
 
-#include "stdio.h"
 #include "inttypes.h"
 #include "stdbool.h"
 #include "stddef.h"
+#include "PayloadStructure.h"
 
 typedef uint16_t WORD;
 typedef uint32_t DWORD;
@@ -350,38 +350,35 @@ bool str_cmp(const char* str1, const char* str2) {
     return false;
 }
 
-#ifndef PVML_INDEX
-#define PVML_INDEX 0
-#endif
-#ifndef PAYLOAD_INFO_OFFSET
-#define PAYLOAD_INFO_OFFSET 0
-#endif
-
-#define GetProcAddress_idx 0
-#define LoadLibraryA_idx GetProcAddress_idx + 15
-#define ExitProcess_idx LoadLibraryA_idx + 13
-#define VirtualAlloc_idx ExitProcess_idx + 12
-#define VirtualFree_idx VirtualAlloc_idx + 13
-#define MessageBoxA_idx VirtualFree_idx + 12
-#define user32_idx MessageBoxA_idx + 12
-static const char* __attribute__((section(".text#"))) big_str = "GetProcAddress\0LoadLibraryA\0ExitProcess\0VirtualAlloc\0VirtualFree\0MessageBoxA\0user32.dll";
-
 typedef void* (*GetProcAddress_functype)(void* module, const char* name);
 typedef void* (*LoadLibraryA_functype)(const char* name);
 typedef int (*MessageBoxA_functype)(void* window, const char* text, const char* caption, unsigned int type);
 
+static void parse_self(PayloadInfo* info) {
+    info->self = get_self_base_address();
+    IMAGE_DOS_HEADER* dos_header = info->self;
+    if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
+        info->valid = false;
+        return;
+    }
+    IMAGE_NT_HEADERS64* nt_header = info->self + dos_header->e_lfanew;
+    if (nt_header->Signature != IMAGE_NT_SIGNATURE) {
+        info->valid = false;
+        return;
+    }
+    IMAGE_SECTION_HEADER* pvml_section = (void*)nt_header + sizeof(IMAGE_NT_HEADERS64) + PVML_INDEX * sizeof(IMAGE_SECTION_HEADER);
+    info->pvml = info->self + pvml_section->VirtualAddress;
+}
+
+static const char* get_big_string(void* pvml) {
+    return pvml + PAYLOAD_BIG_STRING_OFFSET;
+    //return PAYLOAD_BIG_STRING;
+}
+
 static PayloadInfo build_payload_info() {
     PayloadInfo info = {0};
-    
-    // check if process inputs are actually there
-    if (PVML_INDEX < 0) {
-        info.valid = false;
-        return info;
-    }
-    if (PAYLOAD_INFO_OFFSET < 0) {
-        info.valid = false;
-        return info;
-    }
+    parse_self(&info);
+    const char* big_str = get_big_string(info.pvml);
 
     // parse kernel32
     {
@@ -401,6 +398,7 @@ static PayloadInfo build_payload_info() {
         uint32_t* name_table = (uint32_t*)((void*)info.kernel32 + iat->AddressOfNames);
         uint16_t* name_ordinal_table = (uint16_t*)((void*)info.kernel32 + iat->AddressOfNameOrdinals);
         unsigned int name_count = iat->NumberOfNames;
+        
         for (unsigned int i = 0; i < name_count; i++) {
             uint16_t ordinal = name_ordinal_table[i];
             void* func = info.kernel32 + func_address_table[ordinal];
@@ -421,28 +419,11 @@ static PayloadInfo build_payload_info() {
                 info.virtual_free = func;
             }
         }
-
+        
         LoadLibraryA_functype load_library = info.load_library;
         GetProcAddress_functype get_proc_address = info.get_proc_address;
         info.user32 = load_library(&big_str[user32_idx]);
         info.message_box = get_proc_address(info.user32, &big_str[MessageBoxA_idx]);
-    }
-
-    // parse self
-    {
-        info.self = get_self_base_address();
-        IMAGE_DOS_HEADER* dos_header = info.self;
-        if (dos_header->e_magic != IMAGE_DOS_SIGNATURE) {
-            info.valid = false;
-            return info;
-        }
-        IMAGE_NT_HEADERS64* nt_header = info.self + dos_header->e_lfanew;
-        if (nt_header->Signature != IMAGE_NT_SIGNATURE) {
-            info.valid = false;
-            return info;
-        }
-        IMAGE_SECTION_HEADER* pvml_section = (void*)nt_header + sizeof(IMAGE_NT_HEADERS64) + PVML_INDEX * sizeof(IMAGE_SECTION_HEADER);
-        info.pvml = info.self + pvml_section->VirtualAddress;
     }
 
     info.valid = true;
@@ -465,21 +446,39 @@ static PayloadInfo* load_payload_info_from_storage() {
         IMAGE_SECTION_HEADER* pvml_section = (void*)nt_header + sizeof(IMAGE_NT_HEADERS64) + PVML_INDEX * sizeof(IMAGE_SECTION_HEADER);
         pvml = self + pvml_section->VirtualAddress;
     }
-    return pvml + PAYLOAD_INFO_OFFSET;
+
+    // build payload info if it isn't there
+    // Note(TeYo): This requires that the payload info is zeroed at compile time
+    PayloadInfo* info = pvml + PAYLOAD_INFO_OFFSET;
+    if (!info->valid) {
+        *info = build_payload_info();
+    }
+    return info;
 }
 
 // payloads
 
-void setup_payload() {
+int main() {
     PayloadInfo info = build_payload_info();
-    PayloadInfo* storage_destination = (info.pvml + PAYLOAD_INFO_OFFSET);
-    *storage_destination = info;
+    MessageBoxA_functype message_box = info.message_box;
+    message_box(NULL, "Testing", NULL, 0);
+    return 0;
 }
 
+int fputs_payload(const char* str, void* file) {
+    PayloadInfo info = build_payload_info();
+    MessageBoxA_functype message_box = info.message_box;
+    const char* big_str = get_big_string(info.pvml);
+    message_box(NULL, &big_str[GetProcAddress_idx], NULL, 0);
+    
+    return 0;
+}
 
+/*
 int fputs_payload(const char* str, void* file) {
     PayloadInfo* info = load_payload_info_from_storage();
     MessageBoxA_functype message_box = info->message_box;
     message_box(NULL, str, NULL, 0);
     return 0;
 }
+*/

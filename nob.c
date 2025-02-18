@@ -6,6 +6,8 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include "stddef.h"
+#include "inttypes.h"
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
