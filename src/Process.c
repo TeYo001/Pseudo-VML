@@ -372,7 +372,6 @@ static void parse_self(PayloadInfo* info) {
 
 static const char* get_big_string(void* pvml) {
     return pvml + PAYLOAD_BIG_STRING_OFFSET;
-    //return PAYLOAD_BIG_STRING;
 }
 
 static PayloadInfo build_payload_info() {
@@ -458,27 +457,9 @@ static PayloadInfo* load_payload_info_from_storage() {
 
 // payloads
 
-int main() {
-    PayloadInfo info = build_payload_info();
-    MessageBoxA_functype message_box = info.message_box;
-    message_box(NULL, "Testing", NULL, 0);
-    return 0;
-}
-
-int fputs_payload(const char* str, void* file) {
-    PayloadInfo info = build_payload_info();
-    MessageBoxA_functype message_box = info.message_box;
-    const char* big_str = get_big_string(info.pvml);
-    message_box(NULL, &big_str[GetProcAddress_idx], NULL, 0);
-    
-    return 0;
-}
-
-/*
 int fputs_payload(const char* str, void* file) {
     PayloadInfo* info = load_payload_info_from_storage();
     MessageBoxA_functype message_box = info->message_box;
     message_box(NULL, str, NULL, 0);
     return 0;
 }
-*/
