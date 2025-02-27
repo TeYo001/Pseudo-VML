@@ -5,11 +5,14 @@
 #include "stdbool.h"
 #include "string.h"
 
-JumpTable* build_jump_table(ExeInfo* exe_info, unsigned int max_jump_function_count) {
+JumpTable* build_jump_table(ExeInfo* exe_info, unsigned int max_jump_function_count, unsigned int max_jump_reference_count) {
     JumpTable* jump_table = malloc(sizeof(JumpTable));
     jump_table->jump_functions = malloc(sizeof(JumpFunction) * max_jump_function_count);
     jump_table->jump_function_count = 0;
     jump_table->max_jump_function_count = max_jump_function_count;
+    jump_table->jump_references = malloc(sizeof(JumpReference) * max_jump_reference_count);
+    jump_table->jump_reference_count = 0;
+    jump_table->max_jump_reference_count = max_jump_reference_count;
 
     unsigned int iat_va = exe_info->nt_header->OptionalHeader.DataDirectory[IMPORT_ADDRESS_TABLE_ENTRY].VirtualAddress;
     unsigned int iat_size = exe_info->nt_header->OptionalHeader.DataDirectory[IMPORT_ADDRESS_TABLE_ENTRY].Size;
@@ -66,10 +69,10 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
         uint8_t modrm = xed_decoded_inst_get_modrm(inst);
         unsigned int inst_size_bytes = asm_state->instruction_lengths[i];
         unsigned int ptr = asm_state->binary_instruction_pointers[i];
-
+        
         if (iclass == XED_ICLASS_CALL_NEAR && modrm == 0x15) {
             uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
-            int64_t dest_va = rel32 + exe_info->text_section->VirtualAddress + ptr + 6;
+            int64_t dest_va = rel32 + asm_state->header->VirtualAddress + ptr + 6;
             if (!(dest_va >= jump_table->iat_start_virtual_address &&
                     dest_va <= jump_table->iat_end_virtual_address)) {
                 continue;
@@ -78,12 +81,23 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
             JumpFunction* jump_func = &jump_table->jump_functions[jump_func_idx];
             const char* dll_name = jump_func->from_dll->name;
             const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
-            unsigned int file_offset = exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[i];
+            unsigned int file_offset = asm_state->header->PointerToRawData + asm_state->binary_instruction_pointers[i] - asm_state->header->VirtualAddress;
             printf("\'%s\' from: \'%s\' call at op idx: %u and file offset: 0x%" PRIx32 "\n", func_name, dll_name, i, file_offset);
+            
+            if (jump_table->jump_reference_count >= jump_table->max_jump_reference_count) {
+                printf("ERROR: Max jump reference count reached\n");
+                exit(1);
+            }
+            JumpReference* ref = &jump_table->jump_references[jump_table->jump_reference_count];
+            jump_table->jump_reference_count++;
+            ref->from_header = asm_state->header;
+            ref->from_fo = file_offset;
+            ref->from_va = asm_state->header->VirtualAddress + asm_state->binary_instruction_pointers[i];
+            ref->to_func = jump_func;
         } else if (iclass == XED_ICLASS_JMP || modrm == 0x25) {
             // NOTE(TeYo): When ever you se this, it's probably from a reference table before the IAT
             uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
-            int64_t dest_va = rel32 + exe_info->text_section->VirtualAddress  + ptr + 6;
+            int64_t dest_va = rel32 + asm_state->header->VirtualAddress  + ptr + 6;
             if (!(dest_va >= jump_table->iat_start_virtual_address &&
                         dest_va <= jump_table->iat_end_virtual_address)) {
                 continue;
@@ -92,8 +106,19 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
             JumpFunction* jump_func = &jump_table->jump_functions[jump_func_idx];
             const char* dll_name = jump_func->from_dll->name;
             const char* func_name = jump_func->from_dll->function_names[jump_func->function_index];
-            unsigned int file_offset = exe_info->text_section->PointerToRawData + asm_state->binary_instruction_pointers[i];
+            unsigned int file_offset = asm_state->header->PointerToRawData + asm_state->binary_instruction_pointers[i];
             printf("\'%s\' from: \'%s\' call at op idx: %u and file offset: 0x%" PRIx32 "\n", func_name, dll_name, i, file_offset);
+            
+            if (jump_table->jump_reference_count >= jump_table->max_jump_reference_count) {
+                printf("ERROR: Max jump reference count reached\n");
+                exit(1);
+            }
+            JumpReference* ref = &jump_table->jump_references[jump_table->jump_reference_count];
+            jump_table->jump_reference_count++;
+            ref->from_header = asm_state->header;
+            ref->from_fo = file_offset;
+            ref->from_va = asm_state->header->VirtualAddress + asm_state->binary_instruction_pointers[i];
+            ref->to_func = jump_func;
         }
     }
 

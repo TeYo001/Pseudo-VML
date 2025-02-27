@@ -2,8 +2,10 @@
 
 #include "../lib/xed/includes/xed-interface.h"
 #include "stdbool.h"
+#include "ExeParser.h"
 
 typedef struct {
+    IMAGE_SECTION_HEADER* header;
     const unsigned char* binary_instructions;
     unsigned int binary_instructions_length;
     xed_decoded_inst_t* decoded_instructions;
@@ -17,7 +19,7 @@ typedef struct {
     xed_address_width_enum_t xed_stack_addr_width;
 } AsmParserState;
 
-AsmParserState* build_asm_parser_state(const char* raw_text_code, unsigned int raw_text_size, unsigned int decoded_instructions_max_count);
+AsmParserState* build_asm_parser_state(ExeInfo* exe_info, const char* section_name, unsigned int decoded_instructions_max_count);
 void free_asm_state(AsmParserState* asm_state);
 void parse_asm(AsmParserState* asm_state);
 bool parse_instruction(AsmParserState* asm_state);

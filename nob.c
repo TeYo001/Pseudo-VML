@@ -106,11 +106,10 @@ int main(int argc, char** argv)
         }
     }
 
-    const unsigned int INCLUDE_FILES_COUNT = 9;
+    const unsigned int INCLUDE_FILES_COUNT = 8;
     const char* include_file_locations[] = {
         "src/Main",
         "src/ExeParser",
-        "src/ElfParser",
         "src/AsmParser",
         "src/JumpTableParser",
         "src/ExeEditor",
@@ -178,27 +177,13 @@ int main(int argc, char** argv)
         char link_command[PATH_MAX] = "-L";
         strcat(link_command, WORKING_DIRECTORY);
         strcat(link_command, "lib/xed");
-        nob_cmd_append(&cmd, link_command, "-l:libxed.a"); 
 
+#ifdef __linux__
+        nob_cmd_append(&cmd, link_command, "-l:libxed.a");
+#elif _WIN32
+        nob_cmd_append(&cmd, link_command, "-l:libxed.dll");
+#endif
         if (!nob_cmd_run_sync(cmd)) return 1;
-    }
-    
-    // Compile FetchKernel32Functions
-    {
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
-        nob_cmd_append(&cmd, "-O1");
-        nob_cmd_append(&cmd, "-o", "build/FetchKernel32Functions.exe", "src/FetchKernel32Functions.c");
-        if (!nob_cmd_run_sync(cmd)) return 1;
-    }
-
-    // Compile InstructionFetch
-    {
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "nasm");
-        nob_cmd_append(&cmd, "-f", "win64");
-        nob_cmd_append(&cmd, "src/FetchInstruction.asm", "-o", "build/FetchInstruction.o");
-        //if (!nob_cmd_run_sync(cmd)) return 1;
     }
     
     // Compile Process
@@ -231,32 +216,6 @@ int main(int argc, char** argv)
             nob_cmd_append(&cmd, "-o", "build/Process.dll", "build/Process.o", "build/AsmPayload.o", "build/ProcessLib.o");
             if (!nob_cmd_run_sync(cmd)) return 1;
         }
-        /*
-        {
-            Nob_Cmd cmd = {0};
-            nob_cmd_append(&cmd, "x86_64-w64-mingw32-gcc");
-            nob_cmd_append(&cmd, "-o", "build/ProcessTest.exe", "build/Process.o", "build/AsmPayload.o", "build/ProcessLib.o");
-            if (!nob_cmd_run_sync(cmd)) return 1;
-        }
-        */
-    }
-
-    // Compile PreProcess
-    {
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "nasm");
-        nob_cmd_append(&cmd, "-f", "bin");
-        nob_cmd_append(&cmd, "src/PreProcess.asm", "-o", "build/PreProcess.bin");
-        if (!nob_cmd_run_sync(cmd)) return 1;
-    }
-
-    // Compile PostProcess
-    {
-        Nob_Cmd cmd = {0};
-        nob_cmd_append(&cmd, "nasm");
-        nob_cmd_append(&cmd, "-f", "bin");
-        nob_cmd_append(&cmd, "src/PostProcess.asm", "-o", "build/PostProcess.bin");
-        if (!nob_cmd_run_sync(cmd)) return 1;
     }
 
 run_skip:
