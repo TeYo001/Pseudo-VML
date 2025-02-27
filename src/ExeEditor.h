@@ -31,9 +31,9 @@ typedef struct _IMAGE_SECTION_HEADER {
 } IMAGE_SECTION_HEADER, *PIMAGE_SECTION_HEADER;
 */
 
-bool can_push_back_new_section(ExeInfo* exe_info, FILE* fd);
+bool can_push_back_new_section(ExeInfo* exe_info);
 IMAGE_SECTION_HEADER* build_new_section_push_back(ExeInfo* exe_info, SectionBuildInfo* new_section,
-        unsigned int extra_virtual_padding_count, unsigned int extra_file_padding_count);
+        unsigned int extra_file_padding_count);
 void section_push_back(ExeInfo* exe_info, ModTable* mod_table, SectionBuildInfo* new_section, IMAGE_SECTION_HEADER* new_header);
 
 DWORD calculate_checksum(FILE* fd, unsigned int file_size);

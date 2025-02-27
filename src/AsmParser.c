@@ -8,12 +8,16 @@
 
 bool xed_initialized = false;
 
-AsmParserState* build_asm_parser_state(const char* raw_text_code, unsigned int raw_text_size, unsigned int decoded_instructions_max_count) {
-    unsigned int binary_instructions_length = raw_text_size;
+AsmParserState* build_asm_parser_state(ExeInfo* exe_info, const char* section_name, unsigned int decoded_instructions_max_count) {
+    char* raw_code;
+    IMAGE_SECTION_HEADER* header = get_section_from_name(exe_info, section_name, &raw_code);
+
+    unsigned int binary_instructions_length = header->SizeOfRawData;
     AsmParserState* asm_state = malloc(sizeof(AsmParserState));
     unsigned char* binary_instructions = malloc(sizeof(char) * binary_instructions_length);
-    memcpy(binary_instructions, raw_text_code, raw_text_size);
+    memcpy(binary_instructions, raw_code, header->SizeOfRawData);
 
+    asm_state->header = header;
     asm_state->binary_instructions = binary_instructions;
     asm_state->binary_instructions_length = binary_instructions_length;
     asm_state->decoded_instructions = malloc(sizeof(xed_decoded_inst_t) * decoded_instructions_max_count);
@@ -22,8 +26,6 @@ AsmParserState* build_asm_parser_state(const char* raw_text_code, unsigned int r
     asm_state->instruction_lengths = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
     asm_state->binary_instruction_pointers = malloc(sizeof(unsigned int) * decoded_instructions_max_count);
     asm_state->binary_read_ptr = 0;
-
-    printf("max: %u\n", asm_state->decoded_instructions_max_count);
 
     if (!xed_initialized) {
         xed_tables_init();
@@ -83,11 +85,4 @@ bool parse_instruction(AsmParserState* asm_state) {
     }
     
     return found_valid;
-}
-
-void skip_zeros(AsmParserState* asm_state) {
-    while (asm_state->binary_instructions[asm_state->binary_read_ptr] == 0x00 
-            && asm_state->binary_read_ptr < asm_state->binary_instructions_length) {
-        asm_state->binary_read_ptr++;
-    }
 }
