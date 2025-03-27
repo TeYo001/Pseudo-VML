@@ -94,7 +94,7 @@ void jump_table_find_references(ExeInfo* exe_info, AsmParserState* asm_state, Ju
             ref->from_fo = file_offset;
             ref->from_va = asm_state->header->VirtualAddress + asm_state->binary_instruction_pointers[i];
             ref->to_func = jump_func;
-        } else if (iclass == XED_ICLASS_JMP || modrm == 0x25) {
+        } else if (iclass == XED_ICLASS_JMP && modrm == 0x25) {
             // NOTE(TeYo): When ever you se this, it's probably from a reference table before the IAT
             uint32_t rel32 = *(uint32_t*)(asm_state->binary_instructions + (ptr + 2));
             int64_t dest_va = rel32 + asm_state->header->VirtualAddress  + ptr + 6;
